@@ -5,6 +5,7 @@ Deploy: Streamlit Cloud / Render / Railway (free tier)
 """
 import warnings; warnings.filterwarnings('ignore')
 import streamlit as st
+import streamlit.components.v1 as _components
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -20,24 +21,57 @@ from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 
 # ─── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="SET Analyser · VI Edition",
+    page_title="SET Analyser · VI",
     page_icon="🏦", layout="wide",
     initial_sidebar_state="expanded"
 )
 st.markdown("""
 <style>
-  body, .stApp { background:#060e1c; color:#ddd; }
-  section[data-testid="stSidebar"] { background:#0a1428; }
-  .block-container { padding:1rem 1.5rem; }
-  .stTabs [data-baseweb="tab"] { color:#aaa; font-size:13px; }
-  .stTabs [aria-selected="true"] { color:#00d4ff; border-bottom:2px solid #00d4ff; }
-  div[data-testid="stDataFrameResizable"] { border:1px solid #1e3a5f; border-radius:6px; }
-  .stButton>button { background:#0e2040; color:#00d4ff; border:1px solid #1e3a5f;
-                     border-radius:6px; transition:all 0.2s; }
-  .stButton>button:hover { background:#1e3a5f; }
-  h1,h2,h3 { color:#00d4ff; }
-  .vi-card { background:#060e1c; border:1px solid #1e3a5f; border-radius:10px;
-             padding:16px; margin:8px 0; }
+/* ── Base ──────────────────────────────────────────────────────────────── */
+body, .stApp                    { background:#07101f; color:#d0d8e8; }
+section[data-testid="stSidebar"]{ background:#060d1a; border-right:1px solid #0e1e35; }
+.block-container                { padding:1.2rem 2rem 2rem; max-width:1400px; }
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+h1,h2,h3 { color:#00d4ff; font-weight:700; }
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"]              { gap:6px; border-bottom:1px solid #0e1e35; }
+.stTabs [data-baseweb="tab"]                   { color:#556; font-size:13px; padding:8px 16px;
+                                                  border-radius:6px 6px 0 0; }
+.stTabs [aria-selected="true"]                 { color:#00d4ff !important;
+                                                  border-bottom:2px solid #00d4ff !important;
+                                                  background:#080f1e !important; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.stButton>button { background:#0b1830; color:#00d4ff; border:1px solid #1e3a5f;
+                   border-radius:6px; font-size:13px; transition:all 0.15s; }
+.stButton>button:hover { background:#112244; border-color:#00d4ff; }
+.stButton>button[kind="primary"] { background:#0e2850; border-color:#00d4ff; font-weight:600; }
+
+/* ── Inputs / selects ───────────────────────────────────────────────────── */
+.stSelectbox>div>div, .stMultiSelect>div>div,
+.stTextInput>div>div { background:#060d1a !important; border-color:#1e3a5f !important;
+                        color:#d0d8e8 !important; border-radius:6px !important; }
+.stNumberInput>div>div { background:#060d1a !important; border-color:#1e3a5f !important; }
+/* Multiselect tag chips */
+span[data-baseweb="tag"]        { background:#0e2040 !important; }
+
+/* ── Sidebar widgets ────────────────────────────────────────────────────── */
+.sidebar-section { background:#080f1e; border:1px solid #0e1e35; border-radius:8px;
+                   padding:10px 12px; margin-bottom:10px; }
+.sidebar-label   { color:#6688aa; font-size:11px; font-weight:600;
+                   text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px; }
+
+/* ── Divider ────────────────────────────────────────────────────────────── */
+hr { border:none; border-top:1px solid #0e1e35; margin:14px 0; }
+
+/* ── Screener table (rendered via components.html) ─────────────────────── */
+/* styles injected inline in the HTML blob — no sanitizer issues */
+
+/* ── Metric rows ────────────────────────────────────────────────────────── */
+div[data-testid="metric-container"] { background:#080f1e; border:1px solid #0e1e35;
+                                       border-radius:8px; padding:10px; }
 </style>""", unsafe_allow_html=True)
 
 # ─── Universe ──────────────────────────────────────────────────────────────────
@@ -1033,444 +1067,441 @@ def compute_quick_score(ticker_yf):
                 "Rev CAGR%":None,"ROE%":None,"D/E":None,"P/E":None,"Div%":None,
                 "M-Score":None,"FCF+":False,"A%":0,"B%":0,"C%":0,"D%":0,"E%":0}
 
-def _score_color(pct):
-    if pct >= 72: return "#4ecca3"
-    if pct >= 55: return "#f0c040"
-    return "#ef5350"
+def _sc(p):
+    return "#4ecca3" if p>=72 else ("#f0c040" if p>=55 else "#ef5350")
 
-def _metric_cell(val, fmt="{}", good=None, bad=None, suffix=""):
-    """Return colored HTML cell. good/bad are threshold tuples (val, direction)."""
-    if val is None: return "<span style='color:#444'>—</span>"
-    txt = fmt.format(val) + suffix
-    clr = "#aaaaaa"
-    if good and bad:
-        clr = "#4ecca3" if good(val) else ("#ef5350" if bad(val) else "#f0c040")
-    return f"<span style='color:{clr}'>{txt}</span>"
+def _build_screener_page(rows):
+    """Return a full standalone HTML page — safe to pass to components.html()."""
+    def cell(v, fmt, good, bad):
+        if v is None: return "<span style='color:#334'>—</span>"
+        ok = good(v); fail = bad(v)
+        c = "#4ecca3" if ok else ("#ef5350" if fail else "#f0c040")
+        return f"<span style='color:{c}'>{fmt.format(v)}</span>"
 
-def _mini_bars(row):
-    """5 mini score bars: Quality Health Integrity Fraud Value."""
-    labels = [("Q","A%"),("H","B%"),("I","C%"),("F","D%"),("V","E%")]
-    parts = []
-    for lbl,(key) in labels:
-        pct = row.get(key, 0) or 0
-        c = _score_color(pct)
-        parts.append(
-            f"<div style='display:inline-block;text-align:center;margin-right:4px;width:28px'>"
-            f"<div style='font-size:9px;color:#555;margin-bottom:1px'>{lbl}</div>"
-            f"<div style='background:#1a1a2e;border-radius:3px;height:28px;position:relative;width:28px'>"
-            f"<div style='position:absolute;bottom:0;left:0;right:0;height:{pct:.0f}%;background:{c};border-radius:3px;opacity:0.85'></div>"
-            f"<span style='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);"
-            f"font-size:8px;color:#ddd;font-weight:bold'>{pct:.0f}</span></div></div>"
-        )
-    return "".join(parts)
+    def badge(verdict):
+        if "Strong"   in verdict: bg,tc,ic="#0a2016","#4ecca3","✅"
+        elif "Serious" in verdict or "Phantom" in verdict: bg,tc,ic="#220808","#ef5350","🚨"
+        elif "Beneish" in verdict: bg,tc,ic="#1e1600","#f0c040","⚠️"
+        elif "Research" in verdict: bg,tc,ic="#141200","#d4b800","⚠️"
+        elif "Avoid"   in verdict: bg,tc,ic="#180808","#e05050","❌"
+        else: bg,tc,ic="#111","#888",""
+        label = verdict.replace("✅ ","").replace("🚨 ","").replace("⚠️ ","").replace("❌ ","")
+        return (f"<span style='background:{bg};color:{tc};padding:2px 10px;"
+                f"border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap'>"
+                f"{ic} {label}</span>")
 
-def _verdict_badge(verdict):
-    if "✅" in verdict: bg,tc = "#0b2a1a","#4ecca3"
-    elif "🚨" in verdict: bg,tc = "#2a0b0b","#ef5350"
-    elif "⚠️" in verdict: bg,tc = "#2a2000","#f0c040"
-    else: bg,tc = "#1a1a1a","#888"
-    label = verdict.replace("✅ ","").replace("🚨 ","").replace("⚠️ ","")
-    icon  = "✅" if "✅" in verdict else ("🚨" if "🚨" in verdict else "⚠️")
-    return (f"<span style='background:{bg};color:{tc};padding:2px 8px;border-radius:12px;"
-            f"font-size:11px;font-weight:bold;white-space:nowrap'>{icon} {label}</span>")
+    def mini_bars(r):
+        out = ""
+        for lbl, key in [("Q","A%"),("H","B%"),("I","C%"),("F","D%"),("V","E%")]:
+            pct = r.get(key) or 0
+            c = _sc(pct)
+            out += (f"<div style='display:inline-block;text-align:center;margin-right:3px'>"
+                    f"<div style='font-size:8px;color:#446;margin-bottom:1px'>{lbl}</div>"
+                    f"<div style='position:relative;width:22px;height:32px;"
+                    f"background:#0c1628;border-radius:3px;overflow:hidden'>"
+                    f"<div style='position:absolute;bottom:0;left:0;right:0;"
+                    f"height:{pct:.0f}%;background:{c};opacity:0.8'></div>"
+                    f"<span style='position:absolute;top:50%;left:50%;"
+                    f"transform:translate(-50%,-50%);font-size:8px;color:#ccc;"
+                    f"font-weight:700;z-index:1'>{pct:.0f}</span></div></div>")
+        return out
 
-def _fcf_badge(ok):
-    if ok: return "<span style='color:#4ecca3;font-size:12px'>✔ FCF+</span>"
-    return "<span style='color:#ef5350;font-size:12px'>✘ FCF</span>"
+    def beneish(m):
+        if m is None: return "<span style='color:#334'>—</span>"
+        if m > -1.78: c,l = "#ef5350","HIGH"
+        elif m > -2.22: c,l = "#f0c040","GREY"
+        else: c,l = "#4ecca3","LOW"
+        return f"<span style='color:{c};font-size:11px'>{m:.2f} <b>{l}</b></span>"
 
-def _beneish_badge(m):
-    if m is None: return "<span style='color:#444'>—</span>"
-    if m > -1.78: c,lbl = "#ef5350","HIGH"
-    elif m > -2.22: c,lbl = "#f0c040","GREY"
-    else: c,lbl = "#4ecca3","CLEAN"
-    return f"<span style='color:{c};font-size:10px'>{m:.2f} <b>{lbl}</b></span>"
+    # Summary stats
+    strong   = sum(1 for r in rows if "Strong"  in r.get("Verdict",""))
+    research = sum(1 for r in rows if "Research" in r.get("Verdict",""))
+    risk     = sum(1 for r in rows if "Beneish" in r.get("Verdict","") or "Phantom" in r.get("Verdict",""))
+    avoid    = sum(1 for r in rows if "Avoid"   in r.get("Verdict",""))
+    serious  = sum(1 for r in rows if "Serious" in r.get("Verdict",""))
+    avg_sc   = sum(r.get("VI Score",0) or 0 for r in rows) / len(rows) if rows else 0
 
-def _build_screener_html(rows):
-    header = """
-    <style>
-      .scr-table { width:100%; border-collapse:collapse; font-family:sans-serif; }
-      .scr-table thead th {
-        background:#0a1525; color:#6688aa; font-size:10px; font-weight:600;
-        padding:8px 10px; text-align:left; text-transform:uppercase;
-        letter-spacing:0.5px; border-bottom:1px solid #1e3a5f; white-space:nowrap;
-      }
-      .scr-table tbody tr { border-bottom:1px solid #0e1e30; transition:background 0.15s; }
-      .scr-table tbody tr:hover { background:#0d1e35 !important; }
-      .scr-table td { padding:10px 10px; vertical-align:middle; }
-      .scr-rank { color:#333; font-size:11px; width:28px; text-align:center; }
-      .scr-ticker { font-size:15px; font-weight:700; color:#fff; }
-      .scr-company { font-size:10px; color:#556; margin-top:1px; white-space:nowrap;
-                     overflow:hidden; text-overflow:ellipsis; max-width:160px; }
-      .scr-score-ring {
-        display:inline-flex; align-items:center; justify-content:center;
-        width:44px; height:44px; border-radius:50%; font-size:14px;
-        font-weight:800; border:3px solid; flex-shrink:0;
-      }
-      .metric { font-size:12px; font-family:monospace; }
-    </style>
-    <table class='scr-table'>
-      <thead><tr>
-        <th style='width:30px'>#</th>
-        <th>Stock</th>
-        <th>Verdict</th>
-        <th style='text-align:center'>VI Score</th>
-        <th>Section Scores</th>
-        <th>Rev CAGR</th>
-        <th>ROE</th>
-        <th>D/E</th>
-        <th>P/E</th>
-        <th>Div Yield</th>
-        <th>Beneish M</th>
-        <th>FCF</th>
-      </tr></thead><tbody>
-    """
-    rows_html = ""
-    for i, r in enumerate(rows):
-        score   = r.get("VI Score", 0) or 0
-        sc      = _score_color(score)
-        bg      = "#060e1c" if i % 2 == 0 else "#080f1f"
-        ticker  = r.get("Ticker","")
-        company = r.get("Company","") or ""
-        # truncate long company names
-        company_short = company[:32] + ("…" if len(company) > 32 else "")
+    def stat(v, lbl, c):
+        return (f"<div style='background:#0a1220;border:1px solid #0e1e35;border-radius:8px;"
+                f"padding:10px 14px;text-align:center;flex:1;min-width:90px'>"
+                f"<div style='font-size:22px;font-weight:800;color:{c}'>{v}</div>"
+                f"<div style='font-size:10px;color:#446;margin-top:2px'>{lbl}</div></div>")
 
-        cagr = r.get("Rev CAGR%")
-        roe  = r.get("ROE%")
-        de   = r.get("D/E")
-        pe   = r.get("P/E")
-        dy   = r.get("Div%")
-        m    = r.get("M-Score")
-        fcf  = r.get("FCF+", False)
-
-        cagr_html = _metric_cell(cagr, "{:.1f}%", good=lambda v:v>=7, bad=lambda v:v<0)
-        roe_html  = _metric_cell(roe,  "{:.1f}%", good=lambda v:v>=15, bad=lambda v:v<8)
-        de_html   = _metric_cell(de,   "{:.2f}×", good=lambda v:v<0.5, bad=lambda v:v>1.5)
-        pe_html   = _metric_cell(pe,   "{:.1f}×", good=lambda v:0<v<20, bad=lambda v:v>35 or v<=0)
-        dy_html   = _metric_cell(dy,   "{:.1f}%", good=lambda v:v>=2, bad=lambda v:v<0.5)
-
-        rows_html += f"""
-        <tr style='background:{bg}'>
-          <td class='scr-rank'>{i+1}</td>
-          <td>
-            <div class='scr-ticker'>{ticker}</div>
-            <div class='scr-company' title='{company}'>{company_short}</div>
-          </td>
-          <td>{_verdict_badge(r.get("Verdict","—"))}</td>
-          <td style='text-align:center'>
-            <div class='scr-score-ring' style='color:{sc};border-color:{sc}'>
-              {score:.0f}
-            </div>
-          </td>
-          <td>{_mini_bars(r)}</td>
-          <td class='metric'>{cagr_html}</td>
-          <td class='metric'>{roe_html}</td>
-          <td class='metric'>{de_html}</td>
-          <td class='metric'>{pe_html}</td>
-          <td class='metric'>{dy_html}</td>
-          <td>{_beneish_badge(m)}</td>
-          <td>{_fcf_badge(fcf)}</td>
-        </tr>"""
-
-    return header + rows_html + "</tbody></table>"
-
-def _summary_cards(rows):
-    strong  = sum(1 for r in rows if "Strong" in r.get("Verdict",""))
-    research= sum(1 for r in rows if "Research" in r.get("Verdict",""))
-    caution = sum(1 for r in rows if "Beneish" in r.get("Verdict","") or "Phantom" in r.get("Verdict","") or "Widening" in r.get("Verdict",""))
-    avoid   = sum(1 for r in rows if "Avoid" in r.get("Verdict",""))
-    serious = sum(1 for r in rows if "Serious" in r.get("Verdict",""))
-    avg_score = sum(r.get("VI Score",0) or 0 for r in rows) / len(rows) if rows else 0
-
-    def card(value, label, color, sub=""):
-        return (f"<div style='background:#0a1525;border:1px solid #1e3a5f;border-radius:8px;"
-                f"padding:12px 16px;text-align:center'>"
-                f"<div style='font-size:26px;font-weight:800;color:{color}'>{value}</div>"
-                f"<div style='font-size:11px;color:#668;margin-top:2px'>{label}</div>"
-                f"{f'<div style=\"font-size:10px;color:#445;margin-top:1px\">{sub}</div>' if sub else ''}"
-                f"</div>")
-
-    return (
-        f"<div style='display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px'>"
-        + card(f"{avg_score:.0f}%", "Avg VI Score", "#00d4ff")
-        + card(strong,  "✅ Strong Buy",    "#4ecca3")
-        + card(research,"⚠️ Research More",  "#f0c040")
-        + card(caution, "⚠️ Fraud Risk",     "#ff8c00")
-        + card(avoid,   "❌ Avoid",          "#ef5350")
-        + card(serious, "🚨 Serious Flags",  "#ff1744")
+    summary = (
+        f"<div style='display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap'>"
+        + stat(f"{avg_sc:.0f}%","Avg Score","#00d4ff")
+        + stat(strong,  "✅ Strong Buy",    "#4ecca3")
+        + stat(research,"⚠️ Research More",  "#d4b800")
+        + stat(risk,    "⚠️ Fraud Risk",     "#f08020")
+        + stat(avoid,   "❌ Avoid",          "#e05050")
+        + stat(serious, "🚨 Serious",        "#ff2244")
         + "</div>"
     )
 
+    # Table rows
+    trs = ""
+    for i, r in enumerate(rows):
+        score   = r.get("VI Score", 0) or 0
+        sc      = _sc(score)
+        bg      = "#07101f" if i % 2 == 0 else "#080e1c"
+        ticker  = r.get("Ticker","")
+        company = (r.get("Company","") or "")[:34]
+        trs += f"""
+        <tr style='background:{bg};border-bottom:1px solid #0b1628'>
+          <td style='padding:10px 8px;color:#334;font-size:11px;text-align:center;width:30px'>{i+1}</td>
+          <td style='padding:10px 8px;min-width:120px'>
+            <div style='font-size:15px;font-weight:700;color:#e8f0ff'>{ticker}</div>
+            <div style='font-size:10px;color:#3a5070;margin-top:1px'>{company}</div>
+          </td>
+          <td style='padding:10px 8px'>{badge(r.get("Verdict","—"))}</td>
+          <td style='padding:10px 8px;text-align:center'>
+            <div style='display:inline-flex;align-items:center;justify-content:center;
+                        width:40px;height:40px;border-radius:50%;border:2.5px solid {sc};
+                        font-size:13px;font-weight:800;color:{sc}'>{score:.0f}</div>
+          </td>
+          <td style='padding:10px 8px'>{mini_bars(r)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("Rev CAGR%"),"{:.1f}%",lambda v:v>=7,lambda v:v<0)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("ROE%"),"{:.1f}%",lambda v:v>=15,lambda v:v<8)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("D/E"),"{:.2f}×",lambda v:v<0.5,lambda v:v>1.5)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("P/E"),"{:.1f}×",lambda v:0<v<20,lambda v:v>35 or v<=0)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("Div%"),"{:.1f}%",lambda v:v>=2,lambda v:v<0.5)}</td>
+          <td style='padding:10px 8px'>{beneish(r.get("M-Score"))}</td>
+          <td style='padding:10px 8px;text-align:center;font-size:12px'>
+            {"<span style='color:#4ecca3'>✔</span>" if r.get("FCF+") else "<span style='color:#445'>✘</span>"}
+          </td>
+        </tr>"""
+
+    th = ("background:#060d1a;color:#3a5878;font-size:10px;font-weight:600;"
+          "padding:8px 8px;text-transform:uppercase;letter-spacing:0.5px;"
+          "text-align:left;border-bottom:1px solid #0e1e35;white-space:nowrap")
+    header = (
+        f"<tr>"
+        f"<th style='{th}'>#</th>"
+        f"<th style='{th}'>Stock</th>"
+        f"<th style='{th}'>Verdict</th>"
+        f"<th style='{th};text-align:center'>Score</th>"
+        f"<th style='{th}'>Q H I F V</th>"
+        f"<th style='{th}'>Rev CAGR</th>"
+        f"<th style='{th}'>ROE</th>"
+        f"<th style='{th}'>D/E</th>"
+        f"<th style='{th}'>P/E</th>"
+        f"<th style='{th}'>Div%</th>"
+        f"<th style='{th}'>Beneish M</th>"
+        f"<th style='{th};text-align:center'>FCF+</th>"
+        f"</tr>"
+    )
+
+    row_h   = 58
+    head_h  = 80
+    total_h = head_h + len(rows) * row_h + 20
+    height  = min(total_h, 820)
+
+    return f"""<!DOCTYPE html>
+<html><head><meta charset='utf-8'>
+<style>
+  * {{ box-sizing:border-box; margin:0; padding:0; }}
+  body {{ background:#07101f; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+          color:#d0d8e8; padding:0; }}
+  .wrap {{ padding:4px 2px 12px; }}
+  table {{ width:100%; border-collapse:collapse; }}
+  tbody tr:hover {{ background:#0d1a2e !important; }}
+  ::-webkit-scrollbar {{ height:5px; background:#07101f; }}
+  ::-webkit-scrollbar-thumb {{ background:#1e3a5f; border-radius:3px; }}
+</style>
+</head><body>
+<div class='wrap'>
+  {summary}
+  <div style='overflow-x:auto'>
+    <table>
+      <thead>{header}</thead>
+      <tbody>{trs}</tbody>
+    </table>
+  </div>
+</div>
+</body></html>""", height
+
 def show_screener_tab():
-    # ── Header ──────────────────────────────────────────────────────────────────
     st.markdown(
-        "<h3 style='color:#00d4ff;margin-bottom:4px'>🔍 Stock Screener</h3>"
-        "<p style='color:#556;font-size:13px;margin-top:0'>Batch-analyses your selected universe "
-        "using the full VI scorecard. Green = passes ≥72% criteria.</p>",
+        "<h3 style='color:#00d4ff;margin-bottom:2px'>🔍 Screener</h3>"
+        "<p style='color:#3a5070;font-size:13px;margin:0 0 16px'>Batch VI-scorecard across SET100 / MAI. "
+        "Green ring ≥72% · yellow ≥55% · red below.</p>",
         unsafe_allow_html=True
     )
 
-    # ── Controls ─────────────────────────────────────────────────────────────────
-    c1,c2,c3,c4 = st.columns([2,2,1,1])
-    with c1:
-        universe = st.selectbox("Universe", ["SET100","MAI","SET100 + MAI"], key="scr_uni")
+    c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+    with c1: universe = st.selectbox("Universe", ["SET100","MAI","SET100 + MAI"], key="scr_uni")
     with c2:
-        sectors = ["All Sectors"] + sorted(SECTOR_MAP.keys())
-        sector_f = st.selectbox("Sector", sectors, key="scr_sec")
-    with c3:
-        min_score = st.number_input("Min Score%", 0, 100, 0, 5, key="scr_min")
-    with c4:
-        sort_by = st.selectbox("Sort by", ["VI Score","ROE%","Rev CAGR%","Div%","P/E"], key="scr_sort")
+        sector_f = st.selectbox("Sector", ["All Sectors"]+sorted(SECTOR_MAP.keys()), key="scr_sec")
+    with c3: min_score = st.number_input("Min Score%", 0, 100, 0, 5, key="scr_min")
+    with c4: sort_by  = st.selectbox("Sort by", ["VI Score","ROE%","Rev CAGR%","Div%","P/E"], key="scr_sort")
 
     run = st.button("▶  Run Screener", type="primary", use_container_width=True)
 
     if not run and "screener_results" not in st.session_state:
         st.markdown(
-            "<div style='background:#0a1525;border:1px dashed #1e3a5f;border-radius:8px;"
-            "padding:32px;text-align:center;margin-top:20px'>"
-            "<div style='font-size:36px'>🔍</div>"
-            "<div style='color:#00d4ff;font-size:16px;margin:8px 0'>Ready to screen</div>"
-            "<div style='color:#446;font-size:13px'>Choose a universe above and click <b style='color:#aaa'>Run Screener</b></div>"
-            "<div style='color:#334;font-size:11px;margin-top:8px'>SET100 takes ~3–5 min first run · results cached 6 hours</div>"
+            "<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;"
+            "padding:40px;text-align:center;margin-top:20px'>"
+            "<div style='font-size:40px'>🔍</div>"
+            "<div style='color:#00d4ff;font-size:17px;margin:10px 0 6px;font-weight:600'>Ready to screen</div>"
+            "<div style='color:#3a5070;font-size:13px'>Pick a universe above and hit <b style='color:#8ab'>Run Screener</b></div>"
+            "<div style='color:#253545;font-size:11px;margin-top:8px'>SET100 = ~3–5 min first run · results cached 6h</div>"
             "</div>",
             unsafe_allow_html=True
         )
         return
 
-    # ── Run ───────────────────────────────────────────────────────────────────────
     if run:
-        if universe == "SET100":       pool = SET100
-        elif universe == "MAI":         pool = MAI_TICKERS
-        else:                           pool = SET100 + MAI_TICKERS
+        if universe == "SET100":    pool = SET100
+        elif universe == "MAI":      pool = MAI_TICKERS
+        else:                        pool = SET100 + MAI_TICKERS
         if sector_f != "All Sectors":
-            sector_set = set(SECTOR_MAP.get(sector_f, []))
-            pool = [t for t in pool if t in sector_set]
-        if not pool:
-            st.warning("No tickers match this filter."); return
+            pool = [t for t in pool if t in set(SECTOR_MAP.get(sector_f, []))]
+        if not pool: st.warning("No tickers match this filter."); return
 
-        prog_placeholder = st.empty()
-        status_placeholder = st.empty()
+        bar = st.progress(0)
         results = []
         for i, t in enumerate(pool):
-            pct = (i + 1) / len(pool)
-            prog_placeholder.progress(pct,
-                text=f"Analysing **{t}** ({i+1}/{len(pool)}) — {pct*100:.0f}% complete")
+            bar.progress((i+1)/len(pool), text=f"Analysing **{t}** · {i+1}/{len(pool)}")
             results.append(compute_quick_score(to_yf(t)))
-        prog_placeholder.empty()
-        status_placeholder.success(f"✅ Done — {len(results)} stocks analysed")
-
+        bar.empty()
+        st.success(f"✅ Done — {len(results)} stocks analysed")
         st.session_state["screener_results"] = results
-        st.session_state["screener_uni"] = universe
-        st.session_state["screener_sector"] = sector_f
+        st.session_state["screener_meta"] = f"{universe} · {sector_f}"
 
-    if "screener_results" not in st.session_state:
-        return
+    if "screener_results" not in st.session_state: return
+    all_r = st.session_state["screener_results"]
 
-    # ── Filter + Sort ─────────────────────────────────────────────────────────────
-    all_results = st.session_state["screener_results"]
-    filtered = [r for r in all_results if (r.get("VI Score") or 0) >= min_score]
-
-    asc = sort_by == "P/E"   # lower P/E is better → ascending
+    # ── Filter ──────────────────────────────────────────────────────────
+    filtered = [r for r in all_r if (r.get("VI Score") or 0) >= min_score]
+    asc = (sort_by == "P/E")
     filtered.sort(key=lambda r: (r.get(sort_by) or 0), reverse=not asc)
 
-    # ── Summary cards ─────────────────────────────────────────────────────────────
-    uni_label  = st.session_state.get("screener_uni", universe)
-    sec_label  = st.session_state.get("screener_sector", sector_f)
+    meta = st.session_state.get("screener_meta","")
+    st.caption(f"**{len(filtered)}** stocks · {meta} · min {min_score}% · sorted by {sort_by}  "
+               f"· Q=Quality  H=Health  I=Integrity  F=Fraud  V=Valuation")
+
+    # ── Quick filters row ────────────────────────────────────────────────
+    fa, fb, fc, fd, fe = st.columns(5)
+    active = st.session_state.get("scr_filter","all")
+    with fa:
+        if st.button("✅ Strong Buy", use_container_width=True, key="f_sb"):
+            st.session_state["scr_filter"] = "sb" if active!="sb" else "all"
+    with fb:
+        if st.button("🚨 Red Flags",  use_container_width=True, key="f_rf"):
+            st.session_state["scr_filter"] = "rf" if active!="rf" else "all"
+    with fc:
+        if st.button("✔ FCF+ only",  use_container_width=True, key="f_fcf"):
+            st.session_state["scr_filter"] = "fcf" if active!="fcf" else "all"
+    with fd:
+        if st.button("💰 Div ≥ 2%",  use_container_width=True, key="f_div"):
+            st.session_state["scr_filter"] = "div" if active!="div" else "all"
+    with fe:
+        if st.button("📈 ROE ≥ 15%", use_container_width=True, key="f_roe"):
+            st.session_state["scr_filter"] = "roe" if active!="roe" else "all"
+
+    flt = st.session_state.get("scr_filter","all")
+    if flt == "sb":  filtered = [r for r in filtered if "Strong"  in r.get("Verdict","")]
+    elif flt == "rf": filtered = [r for r in filtered if "🚨"     in r.get("Verdict","")]
+    elif flt == "fcf":filtered = [r for r in filtered if r.get("FCF+")]
+    elif flt == "div":filtered = [r for r in filtered if (r.get("Div%") or 0)>=2]
+    elif flt == "roe":filtered = [r for r in filtered if (r.get("ROE%") or 0)>=15]
+
+    # ── Table (components.html — no sanitizer) ───────────────────────────
+    if filtered:
+        html_page, h = _build_screener_page(filtered)
+        _components.html(html_page, height=h, scrolling=True)
+    else:
+        st.info("No stocks match this filter.")
+
+    # ── Drill-down ───────────────────────────────────────────────────────
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     st.markdown(
-        f"<div style='display:flex;justify-content:space-between;align-items:center;"
-        f"margin-bottom:8px'>"
-        f"<span style='color:#aaa;font-size:12px'>"
-        f"<b style='color:#00d4ff'>{len(filtered)}</b> stocks · "
-        f"{uni_label} · {sec_label} · min {min_score}% · sorted by {sort_by}"
-        f"</span>"
-        f"<span style='color:#446;font-size:11px'>Section codes: Q=Quality · H=Health · "
-        f"I=Integrity · F=Fraud · V=Valuation</span></div>",
+        "<div style='color:#6688aa;font-size:11px;font-weight:600;"
+        "text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px'>"
+        "🔎 Deep Dive</div>",
         unsafe_allow_html=True
     )
-    st.markdown(_summary_cards(filtered), unsafe_allow_html=True)
+    tickers_shown = ["— pick a stock —"] + [r["Ticker"] for r in filtered]
+    drill = st.selectbox("", tickers_shown, key="scr_drill", label_visibility="collapsed")
 
-    # ── Main table ────────────────────────────────────────────────────────────────
-    if not filtered:
-        st.info("No stocks meet the minimum score filter.")
-        return
-
-    st.markdown(
-        f"<div style='overflow-x:auto;border:1px solid #1e3a5f;border-radius:8px'>"
-        f"{_build_screener_html(filtered)}</div>",
-        unsafe_allow_html=True
-    )
-
-    # ── Quick-filter buttons (verdicts) ───────────────────────────────────────────
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    f1, f2, f3, f4, f5 = st.columns(5)
-    with f1:
-        if st.button("✅ Show Strong Buys only", use_container_width=True, key="flt_sb"):
-            filtered = [r for r in filtered if "Strong" in r.get("Verdict","")]
-            st.markdown(
-                f"<div style='overflow-x:auto;border:1px solid #1e3a5f;border-radius:8px'>"
-                f"{_build_screener_html(filtered)}</div>",
-                unsafe_allow_html=True
-            )
-    with f2:
-        if st.button("🚨 Show Red Flags only", use_container_width=True, key="flt_rf"):
-            filtered = [r for r in filtered if "🚨" in r.get("Verdict","")]
-            st.markdown(
-                f"<div style='overflow-x:auto;border:1px solid #1e3a5f;border-radius:8px'>"
-                f"{_build_screener_html(filtered)}</div>",
-                unsafe_allow_html=True
-            )
-    with f3:
-        if st.button("✔ FCF+ only", use_container_width=True, key="flt_fcf"):
-            filtered = [r for r in filtered if r.get("FCF+")]
-            st.markdown(
-                f"<div style='overflow-x:auto;border:1px solid #1e3a5f;border-radius:8px'>"
-                f"{_build_screener_html(filtered)}</div>",
-                unsafe_allow_html=True
-            )
-    with f4:
-        if st.button("💰 Div > 2% only", use_container_width=True, key="flt_div"):
-            filtered = [r for r in filtered if (r.get("Div%") or 0) >= 2]
-            st.markdown(
-                f"<div style='overflow-x:auto;border:1px solid #1e3a5f;border-radius:8px'>"
-                f"{_build_screener_html(filtered)}</div>",
-                unsafe_allow_html=True
-            )
-    with f5:
-        if st.button("📈 ROE > 15% only", use_container_width=True, key="flt_roe"):
-            filtered = [r for r in filtered if (r.get("ROE%") or 0) >= 15]
-            st.markdown(
-                f"<div style='overflow-x:auto;border:1px solid #1e3a5f;border-radius:8px'>"
-                f"{_build_screener_html(filtered)}</div>",
-                unsafe_allow_html=True
-            )
-
-    # ── Drill-down ────────────────────────────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 🔎 Deep Dive")
-    drill = st.selectbox(
-        "Select a stock for full analysis",
-        ["— pick a ticker —"] + [r["Ticker"] for r in filtered],
-        key="scr_drill"
-    )
-    if drill and drill != "— pick a ticker —":
+    if drill and drill != "— pick a stock —":
         name = TICKER_NAMES.get(drill, "")
         st.markdown(
-            f"<div style='background:#0a1525;border:1px solid #1e3a5f;border-radius:8px;"
-            f"padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:12px'>"
-            f"<span style='font-size:22px;font-weight:800;color:#00d4ff'>{drill}</span>"
-            f"<span style='color:#556;font-size:13px'>{name}</span></div>",
+            f"<div style='background:#080e1c;border:1px solid #1a2e48;border-radius:8px;"
+            f"padding:10px 18px;margin-bottom:12px;display:flex;align-items:center;gap:12px'>"
+            f"<span style='font-size:20px;font-weight:800;color:#00d4ff'>{drill}</span>"
+            f"<span style='color:#3a5070;font-size:13px'>{name}</span></div>",
             unsafe_allow_html=True
         )
-        dtabs = st.tabs(["📈 Price Chart","📋 Financials","📊 Fundamentals","⚖️ VI Scorecard","📰 News"])
-        with dtabs[0]:
-            with st.spinner("Loading price chart…"):
-                fig = make_price_chart(to_yf(drill), "2020-01-01")
-                st.pyplot(fig); plt.close(fig)
-        with dtabs[1]:
-            d = fetch_all(to_yf(drill))
-            st.markdown(_df_to_html(d['income'],  "Income Statement"), unsafe_allow_html=True)
-            st.markdown(_df_to_html(d['balance'],  "Balance Sheet"),    unsafe_allow_html=True)
-            st.markdown(_df_to_html(d['cashflow'], "Cash Flow"),        unsafe_allow_html=True)
-        with dtabs[2]:
-            with st.spinner("Plotting fundamentals…"):
-                fig = make_fundamental_chart(to_yf(drill))
-                st.pyplot(fig); plt.close(fig)
-        with dtabs[3]:
-            with st.spinner("Running VI scorecard…"):
-                render_vi_scorecard_st(compute_vi_scorecard(to_yf(drill)))
-        with dtabs[4]:
-            with st.spinner("Scanning news…"):
-                render_news_st(to_yf(drill), fetch_all_news(to_yf(drill)))
+        dt = st.tabs(["📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Scorecard","📰 News"])
+        with dt[0]:
+            with st.spinner("Loading…"): fig=make_price_chart(to_yf(drill),"2020-01-01"); st.pyplot(fig); plt.close(fig)
+        with dt[1]:
+            d=fetch_all(to_yf(drill))
+            for title,df in [("Income Statement",d['income']),("Balance Sheet",d['balance']),("Cash Flow",d['cashflow'])]:
+                st.markdown(_df_to_html(df,title), unsafe_allow_html=True)
+        with dt[2]:
+            with st.spinner("Plotting…"): fig=make_fundamental_chart(to_yf(drill)); st.pyplot(fig); plt.close(fig)
+        with dt[3]:
+            with st.spinner("Scoring…"): render_vi_scorecard_st(compute_vi_scorecard(to_yf(drill)))
+        with dt[4]:
+            with st.spinner("Fetching news…"): render_news_st(to_yf(drill), fetch_all_news(to_yf(drill)))
 
 # ─── Main app ───────────────────────────────────────────────────────────────────
 def main():
-    # Sidebar
+    # ── Sidebar ──────────────────────────────────────────────────────────────────
     with st.sidebar:
-        st.markdown("<h2 style='color:#00d4ff;margin:0 0 4px'>🏦 SET Analyser</h2>",unsafe_allow_html=True)
-        st.caption("Value Investor Edition · H1 2025")
-        st.markdown("---")
-        st.markdown("**📅 Date Range**")
-        start_year=st.selectbox("Start Year",[str(y) for y in range(2015,2026)],index=6,key="sy")
-        start_month=st.selectbox("Start Month",[f"{m:02d}" for m in range(1,13)],index=0,key="sm")
-        start=f"{start_year}-{start_month}-01"
-        st.markdown("---")
+        st.markdown(
+            "<div style='padding:4px 0 14px'>"
+            "<div style='color:#00d4ff;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
+            "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition · H1 2025</div>"
+            "</div>",
+            unsafe_allow_html=True
+        )
 
-        st.markdown("<span style='color:#00d4ff;font-weight:bold'>SET100</span>",unsafe_allow_html=True)
-        all_set=st.checkbox("Select All SET100",key="all_set")
-        set_search=st.text_input("Filter SET100","",placeholder="e.g. KBANK",key="ss")
-        set_filtered=[t for t in SET100 if set_search.upper() in t]
-        set_selected=[t for t in set_filtered if st.checkbox(t,value=all_set,key=f"s_{t}")]
+        # ── Date range ───────────────────────────────────────────────────────────
+        st.markdown("<div class='sidebar-label'>📅 Chart Start Date</div>", unsafe_allow_html=True)
+        c1, c2 = st.columns([3, 2])
+        with c1: start_year  = st.selectbox("Year",  [str(y) for y in range(2015,2026)], index=6, key="sy", label_visibility="collapsed")
+        with c2: start_month = st.selectbox("Month", [f"{m:02d}" for m in range(1,13)], index=0, key="sm", label_visibility="collapsed")
+        start = f"{start_year}-{start_month}-01"
 
-        st.markdown("---")
-        st.markdown("<span style='color:#4ecca3;font-weight:bold'>MAI</span>",unsafe_allow_html=True)
-        all_mai=st.checkbox("Select All MAI",key="all_mai")
-        mai_search=st.text_input("Filter MAI","",placeholder="e.g. BBGI",key="ms")
-        mai_filtered=[t for t in MAI_TICKERS if mai_search.upper() in t]
-        mai_selected=[t for t in mai_filtered if st.checkbox(t,value=all_mai,key=f"m_{t}")]
+        st.markdown("<hr>", unsafe_allow_html=True)
 
-        st.markdown("---")
-        st.markdown("<span style='color:#f0c040;font-weight:bold'>DR / ETF</span>",unsafe_allow_html=True)
-        all_dr=st.checkbox("Select All DR",key="all_dr")
-        dr_selected=[t for t in DR_TICKERS if st.checkbox(t,value=all_dr,key=f"d_{t}")]
+        # ── SET100 multiselect ───────────────────────────────────────────────────
+        st.markdown(
+            "<div class='sidebar-label'>"
+            "<span style='color:#00d4ff'>●</span> SET100</div>",
+            unsafe_allow_html=True
+        )
+        # Sector shortcut
+        sector_pick = st.selectbox("Quick sector", ["All"]+sorted(SECTOR_MAP.keys()),
+                                   key="sb_sec", label_visibility="collapsed")
+        if sector_pick != "All":
+            default_set = [t for t in SET100 if t in set(SECTOR_MAP.get(sector_pick,[]))]
+        else:
+            default_set = []
+        set_sel = st.multiselect(
+            "SET100 tickers", SET100,
+            default=default_set,
+            placeholder="Type or scroll to pick…",
+            key="set_ms", label_visibility="collapsed"
+        )
 
-        selected_base=set_selected+mai_selected+dr_selected
-        selected=[to_yf(t) for t in selected_base]
-        if selected:
-            st.markdown(f"<div style='background:#0e2040;border-radius:6px;padding:8px;margin-top:8px'>"
-                        f"<span style='color:#4ecca3;font-weight:bold'>{len(selected)} selected</span><br>"
-                        f"<span style='color:#aaa;font-size:11px'>{', '.join(selected_base[:8])}"
-                        f"{'…' if len(selected_base)>8 else ''}</span></div>",unsafe_allow_html=True)
-        st.markdown("---")
-        if st.button("🗑 Clear Cache",help="Force refresh all data"):
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        # ── MAI multiselect ──────────────────────────────────────────────────────
+        st.markdown(
+            "<div class='sidebar-label'>"
+            "<span style='color:#4ecca3'>●</span> MAI</div>",
+            unsafe_allow_html=True
+        )
+        mai_sel = st.multiselect(
+            "MAI tickers", MAI_TICKERS,
+            placeholder="Type or scroll to pick…",
+            key="mai_ms", label_visibility="collapsed"
+        )
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        # ── DR multiselect ───────────────────────────────────────────────────────
+        st.markdown(
+            "<div class='sidebar-label'>"
+            "<span style='color:#f0c040'>●</span> DR / ETF</div>",
+            unsafe_allow_html=True
+        )
+        dr_sel = st.multiselect(
+            "DR tickers", DR_TICKERS,
+            placeholder="Pick DR / ETF…",
+            key="dr_ms", label_visibility="collapsed"
+        )
+
+        selected_base = set_sel + mai_sel + dr_sel
+        selected      = [to_yf(t) for t in selected_base]
+
+        # ── Selection summary pill ───────────────────────────────────────────────
+        if selected_base:
+            names_preview = ", ".join(selected_base[:6]) + ("…" if len(selected_base) > 6 else "")
+            st.markdown(
+                f"<div style='background:#080f1e;border:1px solid #1a2e48;border-radius:6px;"
+                f"padding:8px 12px;margin-top:4px'>"
+                f"<span style='color:#4ecca3;font-weight:700'>{len(selected_base)} selected</span>"
+                f"<span style='color:#2a4060;font-size:11px'> · {names_preview}</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+        if st.button("🗑 Clear cache", use_container_width=True, help="Force-refresh all data"):
             st.cache_data.clear(); st.rerun()
 
-    # Tabs
-    tab_names=["🔍 Screener","📈 Price Charts","📋 Financials","📊 Fundamentals","⚖️ VI Scorecard","📰 News Scan"]
-    tabs=st.tabs(tab_names)
+    # ── Main tabs ────────────────────────────────────────────────────────────────
+    TABS = ["🔍 Screener", "📈 Price", "📋 Financials", "📊 Fundamentals", "⚖️ VI Score", "📰 News"]
+    tabs = st.tabs(TABS)
 
-    with tabs[0]:
-        show_screener_tab()
+    def _need_selection():
+        st.markdown(
+            "<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;"
+            "padding:36px;text-align:center;margin-top:20px'>"
+            "<div style='font-size:36px'>←</div>"
+            "<div style='color:#00d4ff;font-size:16px;margin:10px 0 6px;font-weight:600'>"
+            "Pick a stock in the sidebar</div>"
+            "<div style='color:#2a4060;font-size:13px'>Use the SET100 / MAI / DR selectors on the left</div>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+    with tabs[0]: show_screener_tab()
 
     with tabs[1]:
-        if not selected: st.info("Select tickers in the sidebar."); 
+        if not selected: _need_selection()
         else:
             for ticker in selected:
                 with st.spinner(f"Loading {ticker}…"):
-                    fig=make_price_chart(ticker,start)
+                    fig = make_price_chart(ticker, start)
                     st.pyplot(fig); plt.close(fig)
 
     with tabs[2]:
-        if not selected: st.info("Select tickers in the sidebar.")
+        if not selected: _need_selection()
         else:
             for ticker in selected:
-                d=fetch_all(ticker); base=ticker.replace('.BK','')
-                st.markdown(f"<h4 style='color:#00d4ff'>📋 {base} — Financial Statements</h4>",unsafe_allow_html=True)
-                st.markdown(_df_to_html(d['income'],"Income Statement (Annual)"),unsafe_allow_html=True)
-                st.markdown(_df_to_html(d['balance'],"Balance Sheet (Annual)"),unsafe_allow_html=True)
-                st.markdown(_df_to_html(d['cashflow'],"Cash Flow (Annual)"),unsafe_allow_html=True)
-                st.markdown("<hr style='border-color:#1e3a5f'>",unsafe_allow_html=True)
+                base = ticker.replace('.BK','')
+                name = TICKER_NAMES.get(base, "")
+                st.markdown(
+                    f"<div style='display:flex;align-items:baseline;gap:10px;margin:8px 0 4px'>"
+                    f"<span style='color:#00d4ff;font-size:16px;font-weight:700'>{base}</span>"
+                    f"<span style='color:#3a5070;font-size:13px'>{name}</span></div>",
+                    unsafe_allow_html=True
+                )
+                d = fetch_all(ticker)
+                for title, df in [("Income Statement", d['income']),
+                                   ("Balance Sheet",    d['balance']),
+                                   ("Cash Flow",        d['cashflow'])]:
+                    st.markdown(_df_to_html(df, title), unsafe_allow_html=True)
+                st.markdown("<hr>", unsafe_allow_html=True)
 
     with tabs[3]:
-        if not selected: st.info("Select tickers in the sidebar.")
+        if not selected: _need_selection()
         else:
             for ticker in selected:
                 with st.spinner(f"Plotting {ticker}…"):
-                    fig=make_fundamental_chart(ticker)
+                    fig = make_fundamental_chart(ticker)
                     st.pyplot(fig); plt.close(fig)
 
     with tabs[4]:
-        if not selected: st.info("Select tickers in the sidebar.")
+        if not selected: _need_selection()
         else:
             for ticker in selected:
                 with st.spinner(f"Scoring {ticker}…"):
                     render_vi_scorecard_st(compute_vi_scorecard(ticker))
-                    st.markdown("<div style='height:3px;background:linear-gradient(to right,#0e2040,#00d4ff,#0e2040);margin:16px 0;border-radius:2px'></div>",unsafe_allow_html=True)
+                st.markdown("<hr>", unsafe_allow_html=True)
 
     with tabs[5]:
-        if not selected: st.info("Select tickers in the sidebar.")
+        if not selected: _need_selection()
         else:
             for ticker in selected:
                 with st.spinner(f"Scanning news for {ticker}…"):
                     render_news_st(ticker, fetch_all_news(ticker))
-                    st.markdown("<div style='height:2px;background:#1e3a5f;margin:12px 0'></div>",unsafe_allow_html=True)
+                st.markdown("<hr>", unsafe_allow_html=True)
 
 main()
