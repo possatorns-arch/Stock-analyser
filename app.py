@@ -25,10 +25,15 @@ st.set_page_config(
     page_icon="🏦", layout="wide",
     initial_sidebar_state="expanded"
 )
+st.markdown(
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600'
+    '&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">',
+    unsafe_allow_html=True
+)
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap');
-
 /* ══════════════════════════════════════════════════════════════════════════
    DESIGN TOKENS
    ══════════════════════════════════════════════════════════════════════════ */
@@ -64,18 +69,16 @@ html, body, .stApp {
 /* ══════════════════════════════════════════════════════════════════════════
    HIDE STREAMLIT CHROME — toolbar, header, footer, deploy button
    ══════════════════════════════════════════════════════════════════════════ */
-/* Top bar (Share / star / pencil / github icons) */
-header[data-testid="stHeader"],
-header[data-testid="stHeader"] * { display: none !important; height: 0 !important; }
-
-/* "Manage app" button bottom-right */
-#MainMenu                        { display: none !important; }
-footer                           { display: none !important; }
-[data-testid="stToolbar"]        { display: none !important; }
-[data-testid="stDecoration"]     { display: none !important; }
-[data-testid="stStatusWidget"]   { display: none !important; }
-
-/* Remove the blank space the hidden header leaves behind */
+/* Hide Streamlit toolbar/footer — safe selectors only */
+#MainMenu                              { visibility: hidden !important; }
+footer                                 { visibility: hidden !important; }
+[data-testid="stToolbar"]             { visibility: hidden !important; }
+[data-testid="stDecoration"]          { display: none !important; }
+[data-testid="stStatusWidget"]        { visibility: hidden !important; }
+/* Shrink (don't hide) the header so it takes no space */
+header[data-testid="stHeader"]        { height: 0 !important; min-height: 0 !important;
+                                         overflow: hidden !important; padding: 0 !important; }
+/* Remove the blank space left behind */
 .block-container { padding-top: 1rem !important; }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1408,8 +1411,9 @@ def _build_screener_page(rows):
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset='utf-8'>
+<link rel='preconnect' href='https://fonts.googleapis.com'>
+<link href='https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@500;700&display=swap' rel='stylesheet'>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@500;700&display=swap');
   * {{ box-sizing:border-box; margin:0; padding:0; }}
   body {{ background:#0b1120; font-family:'Sora',system-ui,sans-serif;
           color:#dce9ff; padding:0; }}
