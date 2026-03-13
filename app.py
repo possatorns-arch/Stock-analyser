@@ -62,6 +62,23 @@ html, body, .stApp {
 .block-container { padding: 1.5rem 2rem 3rem !important; max-width: 1440px !important; }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   HIDE STREAMLIT CHROME — toolbar, header, footer, deploy button
+   ══════════════════════════════════════════════════════════════════════════ */
+/* Top bar (Share / star / pencil / github icons) */
+header[data-testid="stHeader"],
+header[data-testid="stHeader"] * { display: none !important; height: 0 !important; }
+
+/* "Manage app" button bottom-right */
+#MainMenu                        { display: none !important; }
+footer                           { display: none !important; }
+[data-testid="stToolbar"]        { display: none !important; }
+[data-testid="stDecoration"]     { display: none !important; }
+[data-testid="stStatusWidget"]   { display: none !important; }
+
+/* Remove the blank space the hidden header leaves behind */
+.block-container { padding-top: 1rem !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
    SCROLLBARS — visible and styled
    ══════════════════════════════════════════════════════════════════════════ */
 * { scrollbar-width: thin; scrollbar-color: var(--border2) var(--bg2); }
