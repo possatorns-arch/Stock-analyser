@@ -2014,7 +2014,7 @@ def main():
     TABS=["🔍 Screener","📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Score","📰 News"]
     tabs=st.tabs(TABS)
     def _need_selection():
-        st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:50px;text-align:center;margin-top:20px'>"
+        st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:100px;text-align:center;margin-top:20px'>"
                     "<div style='font-size:36px'>←</div><div style='color:#00c8f8;font-size:16px;margin:10px 0 6px;font-weight:600'>Pick a stock in the sidebar</div>"
                     "<div style='color:#2a4060;font-size:13px'>Use the sector icons → stock list on the left</div></div>",unsafe_allow_html=True)
 
