@@ -394,11 +394,15 @@ def make_tv_chart(ticker, period_days=365, chart_type='Candlestick', log_scale=F
     rsi_s  = calc_rsi(close_full)
 
     # ── Slice to period ──
+    # mask for slicing full-history EMA/RSI series down to the display period
     mask = close_full.index >= df.index[0]
-    def to_tv(series):
+
+    def to_tv_series(series):
+        """Convert a pd.Series (already period-sliced) to TV [{time, value}]."""
         return [{"time": int(t.timestamp()), "value": round(float(v), 4)}
-                for t, v in zip(series[mask].index, series[mask])
+                for t, v in series.items()
                 if not pd.isna(v)]
+
     def to_tv_candle(sub):
         return [{"time": int(t.timestamp()),
                  "open":  round(float(r['Open']),  4),
@@ -407,6 +411,7 @@ def make_tv_chart(ticker, period_days=365, chart_type='Candlestick', log_scale=F
                  "close": round(float(r['Close']), 4)}
                 for t, r in sub.iterrows()
                 if not any(pd.isna(r[c]) for c in ['Open','High','Low','Close'])]
+
     def to_tv_vol(sub):
         return [{"time": int(t.timestamp()),
                  "value": float(r['Volume']),
@@ -415,11 +420,11 @@ def make_tv_chart(ticker, period_days=365, chart_type='Candlestick', log_scale=F
                 if not pd.isna(r['Volume'])]
 
     candle_data  = json.dumps(to_tv_candle(df))
-    line_data    = json.dumps(to_tv(d['price'].loc[mask]['Close'] if not d['price'].empty else close_full[mask]))
-    ema25_data   = json.dumps(to_tv(ema25))
-    ema75_data   = json.dumps(to_tv(ema75))
-    ema200_data  = json.dumps(to_tv(ema200))
-    rsi_data     = json.dumps(to_tv(rsi_s))
+    line_data    = json.dumps(to_tv_series(df['Close']))           # already period-filtered
+    ema25_data   = json.dumps(to_tv_series(ema25[mask]))           # slice full EMA to period
+    ema75_data   = json.dumps(to_tv_series(ema75[mask]))
+    ema200_data  = json.dumps(to_tv_series(ema200[mask]))
+    rsi_data     = json.dumps(to_tv_series(rsi_s[mask]))
     vol_data     = json.dumps(to_tv_vol(df))
 
     dy   = trailing_div_yield(d['divs'], d['price'])
