@@ -40,24 +40,47 @@ html,body,.stApp{background:var(--bg)!important;color:var(--txt)!important;
 #MainMenu,footer,[data-testid="stToolbar"],[data-testid="stStatusWidget"]
   {visibility:hidden!important;}
 [data-testid="stDecoration"]{display:none!important;}
-header[data-testid="stHeader"]{height:0!important;overflow:hidden!important;padding:0!important;}
 *{scrollbar-width:thin;scrollbar-color:var(--border2) var(--bg2);}
 ::-webkit-scrollbar{width:7px;height:7px;background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+/* Sidebar — keep toggle button accessible */
 section[data-testid="stSidebar"]{
   background:var(--bg2)!important;
   border-right:1px solid var(--border)!important;}
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span{color:var(--txt2)!important;}
+/* Header: transparent + minimal height, but keep the sidebar toggle reachable */
+header[data-testid="stHeader"]{
+  background:transparent!important;
+  border-bottom:none!important;}
+/* Sidebar collapse/expand button — always visible */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"]{
+  display:flex!important;
+  visibility:visible!important;
+  background:var(--bg2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;}
+[data-testid="collapsedControl"] svg,
+[data-testid="stSidebarCollapsedControl"] svg{fill:var(--accent)!important;}
 h1,h2,h3{color:var(--accent)!important;font-weight:800!important;}
 hr{border:none!important;border-top:1px solid var(--border)!important;margin:14px 0!important;}
-.stTabs [data-baseweb="tab-list"]{gap:4px!important;border-bottom:2px solid var(--border)!important;}
+/* Tabs — comprehensive selectors for current Streamlit versions */
+.stTabs [data-baseweb="tab-list"]{gap:4px!important;border-bottom:2px solid var(--border)!important;background:transparent!important;}
 .stTabs [data-baseweb="tab"]{color:var(--txt2)!important;font-size:13px!important;
   font-weight:600!important;padding:10px 18px!important;background:transparent!important;}
-.stTabs [data-baseweb="tab"]:hover{color:var(--txt)!important;background:var(--bg3)!important;}
-.stTabs [aria-selected="true"]{color:var(--accent)!important;background:var(--bg3)!important;
+.stTabs [data-baseweb="tab"] p,
+.stTabs [data-baseweb="tab"] span,
+.stTabs [data-baseweb="tab"] div{color:var(--txt2)!important;font-size:13px!important;font-weight:600!important;}
+.stTabs [data-baseweb="tab"]:hover,
+.stTabs [data-baseweb="tab"]:hover p,
+.stTabs [data-baseweb="tab"]:hover span{color:var(--txt)!important;background:var(--bg3)!important;}
+.stTabs [aria-selected="true"],
+.stTabs [aria-selected="true"] p,
+.stTabs [aria-selected="true"] span,
+.stTabs [aria-selected="true"] div{color:var(--accent)!important;background:var(--bg3)!important;
   border-bottom:2px solid var(--accent)!important;margin-bottom:-2px!important;}
 .stButton>button{background:var(--bg3)!important;color:var(--txt)!important;
   border:1px solid var(--border2)!important;border-radius:var(--radius)!important;
