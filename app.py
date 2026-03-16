@@ -83,10 +83,12 @@ span[data-baseweb="tag"]{background:rgba(0,200,248,0.15)!important;border:1px so
 .stProgress>div>div>div{background:linear-gradient(90deg,var(--accent),var(--green))!important;}
 div[data-testid="metric-container"]{background:var(--bg2)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
 .sidebar-label{color:var(--txt2)!important;font-size:11px!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:1px!important;margin-bottom:6px!important;}
-/* Sector icon buttons */
-div[data-testid="stButton"] button[kind="secondary"]{
-  padding:6px 2px!important;font-size:11px!important;line-height:1.3!important;
-  white-space:pre-wrap!important;text-align:center!important;}
+/* Sector icon buttons — clean single-line */
+section[data-testid="stSidebar"] div[data-testid="stButton"] button{
+  padding:5px 4px!important;font-size:11px!important;line-height:1.2!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  text-align:center!important;border-radius:6px!important;
+  letter-spacing:0.2px!important;font-weight:500!important;}
 /* Plotly chart background */
 .js-plotly-plot .plotly .bg{fill:#0b1120!important;}
 .modebar{background:rgba(11,17,32,0.8)!important;}
@@ -137,7 +139,7 @@ SECTOR_MAP = {
 # Sector icon buttons for sidebar (emoji + label)
 SECTOR_ICONS = {
     "All":          ("🌐","All"),
-    "Banking":      ("🏦","Banking"),
+    "Banking":      ("🏦","Bank"),
     "Finance":      ("💳","Finance"),
     "Energy":       ("⛽","Energy"),
     "Tech/Telecom": ("📡","Tech"),
@@ -145,7 +147,7 @@ SECTOR_ICONS = {
     "Healthcare":   ("💊","Health"),
     "Commerce":     ("🛒","Commerce"),
     "Food":         ("🍗","Food"),
-    "Industrial":   ("🔧","Industrial"),
+    "Industrial":   ("🔧","Industry"),
     "Transport":    ("✈️","Transport"),
     "Media/Leisure":("🎬","Media"),
 }
@@ -441,6 +443,42 @@ def make_price_chart_plotly(ticker, start):
     fig.update_yaxes(tickvals=[30,50,70],row=2,col=1)
 
     return fig
+
+# ─── 1b. Matplotlib fallback (used when plotly not installed) ──────────────────
+def make_price_chart(ticker, start):
+    d=fetch_all(ticker); df=ts_filter(d['price'],start)
+    fig=plt.figure(figsize=(14,5.5),facecolor='#0d0d0d')
+    if df.empty:
+        plt.text(0.5,0.5,f"No price data — {ticker}",ha='center',va='center',color='white',transform=fig.transFigure,fontsize=14)
+        return fig
+    gs=gridspec.GridSpec(3,1,figure=fig,hspace=0,height_ratios=[3.0,0.9,0.7])
+    ax_p=fig.add_subplot(gs[0]); ax_r=fig.add_subplot(gs[1]); ax_v=fig.add_subplot(gs[2])
+    close=df['Close']; dates=close.index; n_days=len(df)
+    dy=trailing_div_yield(d['divs'],d['price'])
+    ax_p.plot(dates,close,lw=1.8,color='white',zorder=3)
+    ema_colors=['#ff69b4','#00e676','#aaaaaa']
+    for w,c,l in zip(EMA_W,ema_colors,EMA_L): ax_p.plot(dates,close.ewm(span=w).mean(),lw=1.1,color=c,alpha=0.85,label=l,zorder=2)
+    style_ax(ax_p); ax_p.set_ylabel('THB',fontsize=9,color='#aaa'); ax_p.set_xlim(dates[0],dates[-1])
+    ax_p.set_title(ticker,fontsize=13,fontweight='bold',color='white',loc='left',pad=6)
+    ep=close.iloc[-1]
+    ax_p.annotate(f"▼ from MAX  {(ep-close.max())/close.max()*100:.1f}%",xy=(0.01,0.96),xycoords='axes fraction',fontsize=8.5,color='#ff4d6d',va='top',fontfamily='monospace')
+    ax_p.annotate(f"▲ from MIN  +{(ep-close.min())/close.min()*100:.1f}%",xy=(0.50,0.96),xycoords='axes fraction',fontsize=8.5,color='#4ecca3',va='top',ha='center',fontfamily='monospace')
+    ax_p.legend(fontsize=7.5,loc='lower right',facecolor='#1a1a1a',edgecolor='#333',labelcolor='white',framealpha=0.8)
+    plt.setp(ax_p.get_xticklabels(),visible=False)
+    rsi_v=calc_rsi(close); cr=rsi_v.iloc[-1]; rc='#ef5350' if cr>=70 else ('#26c6da' if cr<=30 else '#b0bec5')
+    ax_r.plot(dates,rsi_v,lw=1.2,color=rc,zorder=3)
+    ax_r.axhline(70,color='#ef5350',lw=0.7,ls='--',alpha=0.6); ax_r.axhline(30,color='#26c6da',lw=0.7,ls='--',alpha=0.6)
+    style_ax(ax_r); ax_r.set_xlim(dates[0],dates[-1]); ax_r.set_ylim(0,100); ax_r.set_yticks([30,50,70]); ax_r.set_ylabel('RSI',fontsize=8,color='#aaa')
+    plt.setp(ax_r.get_xticklabels(),visible=False)
+    vc=np.where(df['Close']>=df['Open'],'#3d9970','#e74c3c')
+    ax_v.bar(dates,df['Volume'],color=vc,alpha=0.7,width=1.2); style_ax(ax_v); ax_v.set_ylabel('Vol',fontsize=7,color='#555')
+    ax_v.yaxis.set_major_formatter(plt.FuncFormatter(lambda x,_: f"{x/1e6:.0f}M" if x>=1e6 else f"{x/1e3:.0f}K"))
+    ax_v.set_xlim(dates[0],dates[-1])
+    if n_days<=365: ax_v.xaxis.set_major_formatter(mdates.DateFormatter("%b '%y")); ax_v.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    else: ax_v.xaxis.set_major_formatter(mdates.DateFormatter("%Y")); ax_v.xaxis.set_major_locator(mdates.YearLocator())
+    ax_v.tick_params(axis='x',colors='#aaa',labelsize=9)
+    plt.tight_layout(); return fig
+
 
 # ─── 2. Financial tables ────────────────────────────────────────────────────────
 def _auto_scale(df):
@@ -1550,7 +1588,11 @@ def show_screener_tab():
             unsafe_allow_html=True)
         dt=st.tabs(["📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Scorecard","📰 News"])
         with dt[0]:
-            with st.spinner("Loading…"): fig=make_price_chart(to_yf(drill),"2020-01-01"); st.pyplot(fig); plt.close(fig)
+            with st.spinner("Loading…"):
+                if HAS_PLOTLY:
+                    fig2=make_price_chart_plotly(to_yf(drill),"2020-01-01"); st.plotly_chart(fig2,use_container_width=True)
+                else:
+                    fig2=make_price_chart(to_yf(drill),"2020-01-01"); st.pyplot(fig2,use_container_width=True); plt.close(fig2)
         with dt[1]:
             d=fetch_all(to_yf(drill))
             for title,df in [("Income Statement",d['income']),("Balance Sheet",d['balance']),("Cash Flow",d['cashflow'])]:
@@ -1584,25 +1626,22 @@ def main():
         # ── SET100 section ──────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'><span style='color:#00c8f8'>●</span> SET100</div>",unsafe_allow_html=True)
 
-        # Sector icon grid
+        # Sector icon grid — 3 per row, compact
         sector_keys=['All']+sorted(SECTOR_MAP.keys())
-        cols_per_row=4
         active_sec=st.session_state.get('sb_sec','All')
-        # Render icon buttons in rows
-        for row_start in range(0,len(sector_keys),cols_per_row):
-            row_keys=sector_keys[row_start:row_start+cols_per_row]
-            btn_cols=st.columns(len(row_keys))
+        for row_start in range(0,len(sector_keys),3):
+            row_keys=sector_keys[row_start:row_start+3]
+            btn_cols=st.columns(3)
             for ci,sk in enumerate(row_keys):
-                ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:6]))
+                ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:5]))
                 is_active=(sk==active_sec)
-                btn_style = ("background:#0e2850;border:1px solid #00c8f8;color:#00c8f8" if is_active
-                             else "background:#111a2e;border:1px solid #1e3358;color:#5a7090")
-                if btn_cols[ci].button(ico+"\n"+lbl,key=f"sec_btn_{sk}",
-                                       help=f"Filter to {sk}",use_container_width=True):
-                    st.session_state['sb_sec'] = sk if sk!=active_sec else 'All'
-                    # Clear selection when sector changes
-                    if 'set_ms' in st.session_state: del st.session_state['set_ms']
-                    st.rerun()
+                with btn_cols[ci]:
+                    if is_active:
+                        st.markdown(f"<div style='border:1px solid #00c8f8;border-radius:6px;background:#0a1e38;padding:1px 0;margin-bottom:2px'></div>",unsafe_allow_html=True)
+                    if st.button(f"{ico} {lbl}",key=f"sec_btn_{sk}",help=sk,use_container_width=True):
+                        st.session_state['sb_sec']=sk if sk!=active_sec else 'All'
+                        if 'set_ms' in st.session_state: del st.session_state['set_ms']
+                        st.rerun()
 
         # Only show tickers from selected sector
         active_sec=st.session_state.get('sb_sec','All')
@@ -1623,15 +1662,19 @@ def main():
         # MAI sector filter
         mai_sec_keys=['All']+sorted(MAI_SECTOR_MAP.keys())
         active_mai=st.session_state.get('mai_sec','All')
-        mai_btn_cols=st.columns(4)
-        for ci,sk in enumerate(mai_sec_keys[:4]):
-            ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:6]))
-            is_active=(sk==active_mai)
-            if mai_btn_cols[ci].button(ico+"\n"+lbl,key=f"mai_btn_{sk}",
-                                       help=f"Filter MAI to {sk}",use_container_width=True):
-                st.session_state['mai_sec']=sk if sk!=active_mai else 'All'
-                if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
-                st.rerun()
+        for mrow_start in range(0,len(mai_sec_keys),3):
+            mrow_keys=mai_sec_keys[mrow_start:mrow_start+3]
+            mai_cols=st.columns(3)
+            for ci,sk in enumerate(mrow_keys):
+                ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:5]))
+                is_active=(sk==active_mai)
+                with mai_cols[ci]:
+                    if is_active:
+                        st.markdown(f"<div style='border:1px solid #4ecca3;border-radius:6px;background:#0a1e2e;padding:1px 0;margin-bottom:2px'></div>",unsafe_allow_html=True)
+                    if st.button(f"{ico} {lbl}",key=f"mai_btn_{sk}",help=sk,use_container_width=True):
+                        st.session_state['mai_sec']=sk if sk!=active_mai else 'All'
+                        if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
+                        st.rerun()
 
         active_mai=st.session_state.get('mai_sec','All')
         if active_mai=='All':
