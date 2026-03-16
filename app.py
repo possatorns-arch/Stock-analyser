@@ -25,329 +25,62 @@ st.set_page_config(
     page_icon="🏦", layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ── Connectivity smoke test — shows error immediately instead of blank screen ──
-@st.cache_data(ttl=3600, show_spinner=False)
-def _check_yfinance():
-    try:
-        tk = yf.Ticker("PTT.BK")
-        px = tk.history(period="5d", timeout=15)
-        if px is not None and not px.empty:
-            return True, f"OK — PTT.BK: {px['Close'].iloc[-1]:.2f}"
-        return False, "Empty data returned — market may be closed or feed blocked"
-    except Exception as e:
-        return False, str(e)[:120]
-
 st.markdown("""
 <style>
-/* ══════════════════════════════════════════════════════════════════════════
-   DESIGN TOKENS
-   ══════════════════════════════════════════════════════════════════════════ */
-:root {
-  --bg:        #0b1120;
-  --bg2:       #111a2e;
-  --bg3:       #172038;
-  --border:    #1e3358;
-  --border2:   #2a4570;
-  --txt:       #dce9ff;
-  --txt2:      #8ba8cc;
-  --txt3:      #4a6480;
-  --accent:    #00c8f8;
-  --green:     #22d68a;
-  --yellow:    #f5c842;
-  --red:       #ff5566;
-  --orange:    #ff8c42;
-  --purple:    #b47eff;
-  --radius:    8px;
-  --shadow:    0 4px 24px rgba(0,0,0,0.4);
+:root{
+  --bg:#0b1120; --bg2:#111a2e; --bg3:#172038;
+  --border:#1e3358; --border2:#2a4570;
+  --txt:#dce9ff; --txt2:#8ba8cc; --txt3:#4a6480;
+  --accent:#00c8f8; --green:#22d68a; --yellow:#f5c842;
+  --red:#ff5566; --radius:8px;
 }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   BASE
-   ══════════════════════════════════════════════════════════════════════════ */
-html, body, .stApp {
-  background: var(--bg) !important;
-  color: var(--txt) !important;
-  font-family: 'Sora', system-ui, sans-serif !important;
-}
-.block-container { padding: 1.5rem 2rem 3rem !important; max-width: 1440px !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   HIDE STREAMLIT CHROME — toolbar, header, footer, deploy button
-   ══════════════════════════════════════════════════════════════════════════ */
-/* Hide Streamlit toolbar/footer — safe selectors only */
-#MainMenu                              { visibility: hidden !important; }
-footer                                 { visibility: hidden !important; }
-[data-testid="stToolbar"]             { visibility: hidden !important; }
-[data-testid="stDecoration"]          { display: none !important; }
-[data-testid="stStatusWidget"]        { visibility: hidden !important; }
-/* Shrink (don't hide) the header so it takes no space */
-header[data-testid="stHeader"]        { height: 0 !important; min-height: 0 !important;
-                                         overflow: hidden !important; padding: 0 !important; }
-/* Remove the blank space left behind */
-.block-container { padding-top: 1rem !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   SCROLLBARS — visible and styled
-   ══════════════════════════════════════════════════════════════════════════ */
-* { scrollbar-width: thin; scrollbar-color: var(--border2) var(--bg2); }
-::-webkit-scrollbar        { width: 7px; height: 7px; background: var(--bg2); }
-::-webkit-scrollbar-thumb  { background: var(--border2); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   SIDEBAR
-   ══════════════════════════════════════════════════════════════════════════ */
-section[data-testid="stSidebar"] {
-  background: var(--bg2) !important;
-  border-right: 1px solid var(--border) !important;
-  padding-top: 0 !important;
-}
-section[data-testid="stSidebar"] > div { padding-top: 1rem; }
+html,body,.stApp{background:var(--bg)!important;color:var(--txt)!important;
+  font-family:system-ui,sans-serif!important;}
+.block-container{padding:1.2rem 2rem 2rem!important;max-width:1440px!important;}
+#MainMenu,footer,[data-testid="stToolbar"],[data-testid="stStatusWidget"]
+  {visibility:hidden!important;}
+[data-testid="stDecoration"]{display:none!important;}
+header[data-testid="stHeader"]{height:0!important;overflow:hidden!important;padding:0!important;}
+*{scrollbar-width:thin;scrollbar-color:var(--border2) var(--bg2);}
+::-webkit-scrollbar{width:7px;height:7px;background:var(--bg2);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+section[data-testid="stSidebar"]{
+  background:var(--bg2)!important;
+  border-right:1px solid var(--border)!important;}
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] span { color: var(--txt2) !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   TYPOGRAPHY
-   ══════════════════════════════════════════════════════════════════════════ */
-h1,h2,h3 { color: var(--accent) !important; font-weight: 800 !important;
-            letter-spacing: -0.3px; }
-p, li { color: var(--txt); line-height: 1.65; }
-
-/* caption / small text */
-.stCaption, small, .caption-text {
-  color: var(--txt2) !important; font-size: 12px !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   DIVIDER
-   ══════════════════════════════════════════════════════════════════════════ */
-hr { border: none !important; border-top: 1px solid var(--border) !important; margin: 18px 0 !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   TABS  — bright, readable active state
-   ══════════════════════════════════════════════════════════════════════════ */
-.stTabs [data-baseweb="tab-list"] {
-  gap: 4px !important;
-  border-bottom: 2px solid var(--border) !important;
-  background: transparent !important;
-  padding-bottom: 0 !important;
-}
-.stTabs [data-baseweb="tab"] {
-  color: var(--txt2) !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  padding: 10px 18px !important;
-  border-radius: 8px 8px 0 0 !important;
-  background: transparent !important;
-  border: 1px solid transparent !important;
-  border-bottom: none !important;
-  transition: all 0.15s !important;
-}
-.stTabs [data-baseweb="tab"]:hover {
-  color: var(--txt) !important;
-  background: var(--bg3) !important;
-}
-.stTabs [aria-selected="true"] {
-  color: var(--accent) !important;
-  background: var(--bg3) !important;
-  border-color: var(--border) !important;
-  border-bottom: 2px solid var(--accent) !important;
-  margin-bottom: -2px !important;
-}
-/* tab content area */
-.stTabs [data-baseweb="tab-panel"] { padding: 20px 0 0 !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   BUTTONS  — high contrast, obvious hover/active
-   ══════════════════════════════════════════════════════════════════════════ */
-.stButton > button {
-  background: var(--bg3) !important;
-  color: var(--txt) !important;
-  border: 1px solid var(--border2) !important;
-  border-radius: var(--radius) !important;
-  font-family: 'Sora', sans-serif !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  padding: 8px 16px !important;
-  transition: all 0.15s ease !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
-}
-.stButton > button:hover {
-  background: var(--bg2) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(0,200,248,0.15) !important;
-}
-.stButton > button:active { transform: translateY(0) !important; }
-/* Primary button */
-.stButton > button[kind="primary"],
-.stButton > button[data-testid="baseButton-primary"] {
-  background: linear-gradient(135deg, #0e3060 0%, #0d2550 100%) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.3px !important;
-}
-.stButton > button[kind="primary"]:hover,
-.stButton > button[data-testid="baseButton-primary"]:hover {
-  background: linear-gradient(135deg, #1a4580 0%, #153570 100%) !important;
-  box-shadow: 0 4px 20px rgba(0,200,248,0.25) !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   INPUTS — clear borders, readable text
-   ══════════════════════════════════════════════════════════════════════════ */
-.stSelectbox > div > div,
-.stMultiSelect > div > div,
-.stTextInput > div > div {
-  background: var(--bg2) !important;
-  border: 1px solid var(--border2) !important;
-  color: var(--txt) !important;
-  border-radius: var(--radius) !important;
-}
-.stSelectbox > div > div:focus-within,
-.stMultiSelect > div > div:focus-within,
-.stTextInput > div > div:focus-within {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(0,200,248,0.15) !important;
-}
-.stNumberInput > div > div {
-  background: var(--bg2) !important;
-  border: 1px solid var(--border2) !important;
-  color: var(--txt) !important;
-  border-radius: var(--radius) !important;
-}
-/* Dropdown option text */
-[data-baseweb="select"] [role="option"] {
-  background: var(--bg2) !important;
-  color: var(--txt) !important;
-}
-[data-baseweb="select"] [role="option"]:hover,
-[data-baseweb="select"] [aria-selected="true"] {
-  background: var(--bg3) !important;
-  color: var(--accent) !important;
-}
-/* Multiselect tag chips — previously near-invisible */
-span[data-baseweb="tag"] {
-  background: rgba(0,200,248,0.15) !important;
-  border: 1px solid rgba(0,200,248,0.35) !important;
-  color: var(--accent) !important;
-  border-radius: 4px !important;
-  font-size: 12px !important;
-}
-/* Multiselect listbox */
-[data-baseweb="popover"] ul {
-  background: var(--bg2) !important;
-  border: 1px solid var(--border2) !important;
-}
-[data-baseweb="popover"] li {
-  color: var(--txt) !important;
-}
-[data-baseweb="popover"] li:hover {
-  background: var(--bg3) !important;
-}
-/* Remove icon on chips */
-span[data-baseweb="tag"] span { color: var(--txt2) !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   SELECTBOX arrow + text contrast
-   ══════════════════════════════════════════════════════════════════════════ */
-[data-baseweb="select"] svg { color: var(--txt2) !important; }
-[data-baseweb="select"] > div { color: var(--txt) !important; }
-
-</style>""", unsafe_allow_html=True)
-st.markdown("""
-<style>/* ══════════════════════════════════════════════════════════════════════════
-   PROGRESS BAR  (screener loading)
-   ══════════════════════════════════════════════════════════════════════════ */
-.stProgress > div > div { background: var(--bg3) !important; border-radius: 4px; }
-.stProgress > div > div > div {
-  background: linear-gradient(90deg, var(--accent), var(--green)) !important;
-  border-radius: 4px !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   ALERTS / INFO / WARNING / SUCCESS / ERROR
-   ══════════════════════════════════════════════════════════════════════════ */
-[data-testid="stAlert"] {
-  border-radius: var(--radius) !important;
-  border-width: 1px !important;
-}
-[data-testid="stAlert"][data-baseweb="notification"][kind="info"] {
-  background: rgba(0,200,248,0.08) !important;
-  border-color: rgba(0,200,248,0.3) !important;
-  color: var(--txt) !important;
-}
-[data-testid="stAlert"][kind="success"] {
-  background: rgba(34,214,138,0.08) !important;
-  border-color: rgba(34,214,138,0.3) !important;
-  color: var(--txt) !important;
-}
-[data-testid="stAlert"][kind="warning"] {
-  background: rgba(245,200,66,0.08) !important;
-  border-color: rgba(245,200,66,0.3) !important;
-  color: var(--txt) !important;
-}
-[data-testid="stAlert"][kind="error"] {
-  background: rgba(255,85,102,0.08) !important;
-  border-color: rgba(255,85,102,0.3) !important;
-  color: var(--txt) !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   METRICS
-   ══════════════════════════════════════════════════════════════════════════ */
-div[data-testid="metric-container"] {
-  background: var(--bg2) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
-  padding: 14px !important;
-}
-div[data-testid="metric-container"] label { color: var(--txt2) !important; }
-div[data-testid="metric-container"] [data-testid="stMetricValue"] {
-  color: var(--txt) !important; font-weight: 700 !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   SPINNER / STATUS
-   ══════════════════════════════════════════════════════════════════════════ */
-.stSpinner > div { border-top-color: var(--accent) !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   CUSTOM CLASSES used in sidebar HTML
-   ══════════════════════════════════════════════════════════════════════════ */
-.sidebar-label {
-  color: var(--txt2) !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 1px !important;
-  margin-bottom: 8px !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-}
-.sidebar-divider {
-  border: none; border-top: 1px solid var(--border);
-  margin: 14px -12px !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   NUMBER INPUT — stepper arrows visible
-   ══════════════════════════════════════════════════════════════════════════ */
-.stNumberInput button {
-  background: var(--bg3) !important;
-  border-color: var(--border2) !important;
-  color: var(--txt) !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   COLUMN GAPS — less cramped
-   ══════════════════════════════════════════════════════════════════════════ */
-[data-testid="stHorizontalBlock"] { gap: 12px !important; }
+section[data-testid="stSidebar"] span{color:var(--txt2)!important;}
+h1,h2,h3{color:var(--accent)!important;font-weight:800!important;}
+hr{border:none!important;border-top:1px solid var(--border)!important;margin:14px 0!important;}
+.stTabs [data-baseweb="tab-list"]{gap:4px!important;border-bottom:2px solid var(--border)!important;}
+.stTabs [data-baseweb="tab"]{color:var(--txt2)!important;font-size:13px!important;
+  font-weight:600!important;padding:10px 18px!important;background:transparent!important;}
+.stTabs [data-baseweb="tab"]:hover{color:var(--txt)!important;background:var(--bg3)!important;}
+.stTabs [aria-selected="true"]{color:var(--accent)!important;background:var(--bg3)!important;
+  border-bottom:2px solid var(--accent)!important;margin-bottom:-2px!important;}
+.stButton>button{background:var(--bg3)!important;color:var(--txt)!important;
+  border:1px solid var(--border2)!important;border-radius:var(--radius)!important;
+  font-size:13px!important;font-weight:600!important;}
+.stButton>button:hover{border-color:var(--accent)!important;color:var(--accent)!important;}
+.stButton>button[kind="primary"],.stButton>button[data-testid="baseButton-primary"]
+  {background:#0e2850!important;border-color:var(--accent)!important;
+   color:var(--accent)!important;font-weight:700!important;}
+.stSelectbox>div>div,.stMultiSelect>div>div,.stTextInput>div>div,
+.stNumberInput>div>div{background:var(--bg2)!important;
+  border:1px solid var(--border2)!important;color:var(--txt)!important;
+  border-radius:var(--radius)!important;}
+span[data-baseweb="tag"]{background:rgba(0,200,248,0.15)!important;
+  border:1px solid rgba(0,200,248,0.35)!important;color:var(--accent)!important;
+  border-radius:4px!important;}
+[data-baseweb="popover"] ul{background:var(--bg2)!important;border:1px solid var(--border2)!important;}
+[data-baseweb="popover"] li{color:var(--txt)!important;}
+[data-baseweb="popover"] li:hover{background:var(--bg3)!important;}
+.stProgress>div>div>div{background:linear-gradient(90deg,var(--accent),var(--green))!important;}
+div[data-testid="metric-container"]{background:var(--bg2)!important;
+  border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
+.sidebar-label{color:var(--txt2)!important;font-size:11px!important;font-weight:700!important;
+  text-transform:uppercase!important;letter-spacing:1px!important;margin-bottom:6px!important;}
 </style>""", unsafe_allow_html=True)
 
 # ─── Universe ──────────────────────────────────────────────────────────────────
@@ -426,34 +159,32 @@ def trailing_div_yield(divs, price_df):
     except: return None
 
 def style_ax(ax):
-    ax.set_facecolor('#0b1120')
-    ax.tick_params(colors='#8ba8cc', labelsize=9)
-    ax.grid(axis='y', color='#1e3358', linewidth=0.6, linestyle='--', alpha=0.7)
-    ax.grid(axis='x', color='#172038', linewidth=0.3, alpha=0.5)
-    for sp in ax.spines.values(): sp.set_edgecolor('#1e3358')
+    ax.set_facecolor('#0d0d0d')
+    ax.tick_params(colors='#aaaaaa', labelsize=8)
+    ax.grid(axis='y', color='#2a2a2a', linewidth=0.5, linestyle='--')
+    ax.grid(axis='x', color='#1a1a1a', linewidth=0.3)
+    for sp in ax.spines.values(): sp.set_edgecolor('#2a2a2a')
 
 # ─── Data fetch (cached 6h) ─────────────────────────────────────────────────────
 @st.cache_data(ttl=21600, show_spinner=False)
 def fetch_all(ticker):
-    """Fetch all yfinance data with retry logic for Streamlit Cloud."""
     import time
     data = dict(ticker=ticker, info={}, price=pd.DataFrame(),
                 income=pd.DataFrame(), balance=pd.DataFrame(),
                 cashflow=pd.DataFrame(), divs=pd.Series(dtype=float))
     for attempt in range(3):
         try:
-            tk = yf.Ticker(ticker)
+            tk  = yf.Ticker(ticker)
             end = pd.Timestamp.now()
-            # info first — if this times out, skip rather than crash
             try:
                 info = tk.info or {}
                 data['info'] = info if isinstance(info, dict) else {}
-            except Exception: data['info'] = {}
+            except Exception: pass
             try:
                 px = tk.history(interval='1d',
-                                start=end - pd.DateOffset(years=10), end=end,
-                                timeout=30)
-                if not px.empty: data['price'] = px
+                                start=end - pd.DateOffset(years=10),
+                                end=end, timeout=30)
+                if px is not None and not px.empty: data['price'] = px
             except Exception: pass
             try:
                 inc = tk.income_stmt
@@ -472,14 +203,11 @@ def fetch_all(ticker):
             except Exception: pass
             try:
                 dv = tk.dividends
-                if dv is not None and len(dv) > 0:
-                    data['divs'] = dv
+                if dv is not None and len(dv) > 0: data['divs'] = dv
             except Exception: pass
-            break  # success — exit retry loop
+            break
         except Exception:
-            if attempt < 2:
-                time.sleep(2 ** attempt)  # 1s, 2s backoff
-            continue
+            if attempt < 2: time.sleep(2 ** attempt)
     return data
 
 # ─── 1. Price chart ──────────────────────────────────────────────────────────────
@@ -487,7 +215,7 @@ EMA_W = [25,75,200]; EMA_C = ['deeppink','limegreen','grey']; EMA_L = ['EMA 25',
 
 def make_price_chart(ticker, start):
     d = fetch_all(ticker); df = ts_filter(d['price'], start)
-    fig = plt.figure(figsize=(14, 5.5), facecolor='#0b1120')
+    fig = plt.figure(figsize=(14, 5.5), facecolor='#0d0d0d')
     if df.empty:
         plt.text(0.5, 0.5, f"No price data — {ticker}", ha='center', va='center',
                  color='white', transform=fig.transFigure, fontsize=14)
@@ -509,11 +237,11 @@ def make_price_chart(ticker, start):
     ax_p.set_title(ticker, fontsize=13, fontweight='bold', color='white', loc='left', pad=6)
     ep = close.iloc[-1]
     ax_p.annotate(f"▼ from MAX  {(ep-close.max())/close.max()*100:.1f}%",
-                  xy=(0.01,0.96), xycoords='axes fraction', fontsize=9.5,
-                  color='#ff5566', va='top', fontfamily='monospace', fontweight='bold')
+                  xy=(0.01,0.96), xycoords='axes fraction', fontsize=8.5,
+                  color='#ff4d6d', va='top', fontfamily='monospace')
     ax_p.annotate(f"▲ from MIN  +{(ep-close.min())/close.min()*100:.1f}%",
-                  xy=(0.50,0.96), xycoords='axes fraction', fontsize=9.5,
-                  color='#22d68a', va='top', ha='center', fontfamily='monospace', fontweight='bold')
+                  xy=(0.50,0.96), xycoords='axes fraction', fontsize=8.5,
+                  color='#4ecca3', va='top', ha='center', fontfamily='monospace')
     if dy:
         ax_p.annotate(f"Div: {dy:.2f}%", xy=(0.99,0.96), xycoords='axes fraction',
                       fontsize=8.5, color='#f0c040', va='top', ha='right',
@@ -566,14 +294,13 @@ def _auto_scale(df):
 
 def _df_to_html(df, title, max_years=10):
     if df is None or df.empty:
-        return f"<p style='color:#4a6480;font-style:italic;padding:8px'>No data for {title}</p>"
+        return f"<p style='color:#555;font-style:italic'>No data for {title}</p>"
     cols = sorted(df.columns)[-max_years:]
     sub  = df[cols].copy(); col_lbs = [str(c)[:4] for c in cols]
     scale, ulabel = _auto_scale(sub)
-    TH = ("padding:8px 14px;color:#00c8f8;text-align:right;background:#131e38;"
-          "border-bottom:2px solid #2a4570;font-size:11px;font-weight:700;"
-          "letter-spacing:0.5px;white-space:nowrap")
-    hdr = "".join(f"<th style='{TH}'>{y}</th>" for y in col_lbs)
+    hdr = "".join(f"<th style='padding:6px 12px;color:#00d4ff;text-align:right;"
+                  f"background:#0e1628;border-bottom:2px solid #1e3a5f;font-size:11px'>{y}</th>"
+                  for y in col_lbs)
     rows = ""
     for i, (rn, rd) in enumerate(sub.iterrows()):
         bg = "#0e1830" if i%2==0 else "#111e38"
@@ -583,28 +310,23 @@ def _df_to_html(df, title, max_years=10):
                 v = float(rd[col])
                 txt = "—" if pd.isna(v) else f"{v/scale:,.2f}"
                 clr = "#4a6480" if pd.isna(v) else ("#ff7a85" if v<0 else "#5ef0aa")
-            except: txt,clr = "—","#4a6480"
-            cells += (f"<td style='padding:6px 14px;text-align:right;color:{clr};"
-                      f"font-size:12px;font-family:JetBrains Mono,monospace;"
-                      f"border-bottom:1px solid #1e3358'>{txt}</td>")
+            except: txt,clr = "—","#555"
+            cells += (f"<td style='padding:4px 12px;text-align:right;color:{clr};"
+                      f"font-size:11px;font-family:monospace;border-bottom:1px solid #13213a'>{txt}</td>")
         rows += (f"<tr style='background:{bg}'>"
-                 f"<td style='padding:6px 10px;color:#c8dcf8;font-size:12px;"
-                 f"border-bottom:1px solid #1e3358;white-space:nowrap;max-width:260px;"
-                 f"overflow:hidden;text-overflow:ellipsis'>{str(rn)[:55]}</td>{cells}</tr>")
-    return (f"<div style='margin:16px 0;border:1px solid #1e3358;border-radius:10px;overflow:hidden'>"
-            f"<div style='background:#0e1830;padding:10px 14px;border-bottom:1px solid #1e3358;"
-            f"display:flex;align-items:baseline;gap:10px'>"
-            f"<span style='color:#00c8f8;font-size:14px;font-weight:700'>{title}</span>"
-            f"<span style='color:#4a6480;font-size:11px'>({ulabel})</span></div>"
-            f"<div style='overflow-x:auto'><table style='border-collapse:collapse;width:100%;min-width:600px'>"
-            f"<thead><tr>"
-            f"<th style='padding:8px 10px;color:#8ba8cc;text-align:left;background:#131e38;"
-            f"border-bottom:2px solid #2a4570;font-size:11px;font-weight:700'>Line Item</th>{hdr}"
-            f"</tr></thead><tbody>{rows}</tbody></table></div></div>")
+                 f"<td style='padding:4px 8px;color:#ccc;font-size:11px;"
+                 f"border-bottom:1px solid #13213a;white-space:nowrap'>{str(rn)[:55]}</td>{cells}</tr>")
+    return (f"<div style='margin:12px 0'>"
+            f"<div style='color:#00d4ff;font-size:13px;font-weight:bold;margin-bottom:4px'>{title}"
+            f" <span style='color:#555;font-size:10px;font-weight:normal'>({ulabel})</span></div>"
+            f"<div style='overflow-x:auto'><table style='border-collapse:collapse;width:100%'>"
+            f"<thead><tr><th style='padding:6px 8px;color:#aaa;text-align:left;background:#0e1628;"
+            f"border-bottom:2px solid #1e3a5f;font-size:11px'>Line Item</th>{hdr}</tr></thead>"
+            f"<tbody>{rows}</tbody></table></div></div>")
 
 # ─── 3. Fundamental chart ───────────────────────────────────────────────────────
 def make_fundamental_chart(ticker):
-    DARK='#0b1120'; ACC='#00d4ff'; POS='#26c6da'; NEG='#ef5350'; WARN='#f0c040'; GRN='#4ecca3'
+    DARK='#0d0d0d'; ACC='#00d4ff'; POS='#26c6da'; NEG='#ef5350'; WARN='#f0c040'; GRN='#4ecca3'
     d=fetch_all(ticker); inc=d['income']; bal=d['balance']; cf=d['cashflow']; divs=d['divs']; pr=d['price']
     revenue      = safe_row(inc,'Total Revenue')
     gross_profit = safe_row(inc,'Gross Profit')
@@ -958,56 +680,43 @@ def render_vi_scorecard_st(res):
     fd=sections.get('D',(None,[]))[1]; b_ok=fd[0][3] if fd else True
     gd=sections.get('F',(None,[]))[1]; ph_ok=gd[0][3] if gd else True
     has_wide=any('Phantom' in t or 'Widening' in t for t,_ in red_flags)
-    if not b_ok and not ph_ok: verdict='🚨 SERIOUS RED FLAGS'; vc='#ff5566'
-    elif not ph_ok:            verdict='🚨 PHANTOM PROFIT';    vc='#ff5566'
-    elif not b_ok:             verdict='⚠️ Beneish Risk';       vc='#f5c842'
-    elif has_wide:             verdict='⚠️ Cash Gap — Monitor'; vc='#f5c842'
-    elif overall>=72:          verdict='✅ Strong Buy Candidate';vc='#22d68a'
-    elif overall>=55:          verdict='⚠️ Research Further';   vc='#f5c842'
-    else:                      verdict='❌ Avoid';               vc='#ff5566'
+    if not b_ok and not ph_ok: verdict='🚨 SERIOUS RED FLAGS'; vc='#ef5350'
+    elif not ph_ok:            verdict='🚨 PHANTOM PROFIT';    vc='#ef5350'
+    elif not b_ok:             verdict='⚠️ Beneish Risk';       vc='#f0c040'
+    elif has_wide:             verdict='⚠️ Cash Gap — Monitor'; vc='#f0c040'
+    elif overall>=72:          verdict='✅ Strong Buy Candidate';vc='#4ecca3'
+    elif overall>=55:          verdict='⚠️ Research Further';   vc='#f0c040'
+    else:                      verdict='❌ Avoid';               vc='#ef5350'
 
-    SC={'A':'#00c8f8','B':'#22d68a','C':'#f5c842','D':'#ff5566','E':'#b47eff','F':'#ff8c42'}
-
+    SC={'A':'#00d4ff','B':'#4ecca3','C':'#f0c040','D':'#ef5350','E':'#ab47bc','F':'#ff7043'}
     col1,col2=st.columns([3,1])
     with col1:
-        st.markdown(
-            f"<h3 style='color:#00c8f8;margin:0 0 4px;letter-spacing:-0.3px'>"
-            f"🔍 {ticker} — Value Investor Scorecard</h3>"
-            f"<p style='color:#5a7898;font-size:12px;margin:0'>"
-            f"5-section · cycle-adjusted · Beneish · Buffett/Graham</p>",
-            unsafe_allow_html=True)
+        st.markdown(f"<h3 style='color:#00d4ff;margin:0'>🔍 {ticker} — Value Investor Scorecard</h3>",unsafe_allow_html=True)
+        st.caption("5-section analysis · cycle-adjusted · Beneish fraud model · Buffett / Graham standards")
     with col2:
-        st.markdown(
-            f"<div style='text-align:right;background:#111a2e;border:1px solid #1e3358;"
-            f"border-radius:10px;padding:12px 16px'>"
-            f"<div style='font-size:30px;font-weight:800;color:{vc};line-height:1'>{overall:.0f}%</div>"
-            f"<div style='color:{vc};font-size:12px;font-weight:600;margin:6px 0 4px'>{verdict}</div>"
-            f"<div style='color:#4a6480;font-size:10px'>{tp}/{tn} criteria passed</div></div>",
-            unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:right'>"
+                    f"<span style='font-size:22px;font-weight:bold;color:{vc}'>{overall:.0f}%</span>"
+                    f"<br><span style='color:{vc};font-size:13px'>{verdict}</span>"
+                    f"<br><span style='color:#555;font-size:10px'>{tp}/{tn} criteria passed</span></div>",
+                    unsafe_allow_html=True)
 
-    # Section progress cards
+    # Section progress bars
     cols=st.columns(5)
     for i,(sid,lbl) in enumerate([('A','Quality'),('B','Health'),('C','Integrity'),('D','Fraud'),('E','Value')]):
         if sid in sec_scores:
-            p,n,pct=sec_scores[sid]
-            bc='#22d68a' if pct>=70 else ('#f5c842' if pct>=50 else '#ff5566')
+            p,n,pct=sec_scores[sid]; bc='#4ecca3' if pct>=70 else ('#f0c040' if pct>=50 else '#ef5350')
             with cols[i]:
-                st.markdown(
-                    f"<div style='text-align:center;background:#111a2e;border:1px solid #1e3358;"
-                    f"border-radius:10px;padding:12px 8px'>"
-                    f"<div style='color:{SC[sid]};font-size:10px;font-weight:700;text-transform:uppercase;"
-                    f"letter-spacing:0.8px;margin-bottom:6px'>{lbl}</div>"
-                    f"<div style='color:#dce9ff;font-size:24px;font-weight:800;line-height:1'>{pct:.0f}%</div>"
-                    f"<div style='color:#4a6480;font-size:10px;margin:4px 0 8px'>{p}/{n} passed</div>"
-                    f"<div style='background:#172038;border-radius:4px;height:8px;overflow:hidden'>"
-                    f"<div style='width:{pct:.0f}%;height:8px;background:{bc};border-radius:4px'>"
-                    f"</div></div></div>",
-                    unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center'>"
+                            f"<span style='color:{SC[sid]};font-size:11px;font-weight:bold'>{lbl}</span>"
+                            f"<br><span style='color:#aaa;font-size:13px'>{pct:.0f}%</span>"
+                            f"<br><div style='background:#0e1628;border-radius:3px;height:6px'>"
+                            f"<div style='width:{pct:.0f}%;height:6px;background:{bc};border-radius:3px'></div>"
+                            f"</div></div>",unsafe_allow_html=True)
     st.markdown("---")
 
     # Cycle flags
     if cycle_flags:
-        items="  ·  ".join(f"📉 {f['label']}: recent {f['recent']:.1f}% vs 5Y {f['hist']:.1f}% ({f['pct']:+.1f}pp)"
+        items="  ·  ".join(f"📉 {f['label']}: recent {f['recent']:.1f}% vs 5Y median {f['hist']:.1f}% ({f['pct']:+.1f}pp)"
                             for f in cycle_flags)
         st.info(f"🔄 **Cycle Detector** — {items}")
 
@@ -1019,45 +728,134 @@ def render_vi_scorecard_st(res):
 
     # Section tables
     for sid,(stitle,crit) in sections.items():
-        p,n,pct=sec_scores[sid]
-        _bc='#22d68a' if pct>=70 else ('#f5c842' if pct>=50 else '#ff5566')
-        _sc_col=SC.get(sid,'#8ba8cc')
+        p,n,pct=sec_scores[sid]; bc='#4ecca3' if pct>=70 else ('#f0c040' if pct>=50 else '#ef5350')
         rows=""
         for lbl,tgt,val,ok,expl in crit:
-            ic='✅' if ok else '❌'
-            rb='rgba(34,214,138,0.07)' if ok else 'rgba(255,85,102,0.07)'
-            vc2='#22d68a' if ok else '#ff5566'
-            rows+=(f"<tr style='background:{rb};border-bottom:1px solid #1e3358'>"
-                   f"<td style='padding:7px 10px;color:#dce9ff;font-size:12px;white-space:nowrap'>{ic} {lbl}</td>"
-                   f"<td style='padding:7px 10px;color:#6a88aa;font-size:11px;line-height:1.4'>{expl}</td>"
-                   f"<td style='padding:7px 10px;color:#8ba8cc;font-size:11px;text-align:center;"
-                   f"white-space:nowrap'>{tgt}</td>"
-                   f"<td style='padding:7px 10px;color:{vc2};font-size:12px;font-weight:700;"
-                   f"text-align:right;font-family:JetBrains Mono,monospace;white-space:nowrap'>{val}</td></tr>")
+            ic='✅' if ok else '❌'; rb='#0b1a10' if ok else '#1a0b0b'; vc2='#4ecca3' if ok else '#ef5350'
+            rows+=(f"<tr style='background:{rb}'>"
+                   f"<td style='padding:5px 8px;color:#ddd;font-size:11px'>{ic} {lbl}</td>"
+                   f"<td style='padding:5px 8px;color:#666;font-size:10px'>{expl}</td>"
+                   f"<td style='padding:5px 8px;color:#888;font-size:10px;text-align:center'>{tgt}</td>"
+                   f"<td style='padding:5px 8px;color:{vc2};font-size:11px;font-weight:bold;"
+                   f"text-align:right;font-family:monospace;white-space:nowrap'>{val}</td></tr>")
         st.markdown(
-            f"<div style='margin-bottom:16px;border:1px solid #1e3358;border-radius:10px;overflow:hidden'>"
-            f"<div style='background:#0e1830;padding:10px 14px;border-bottom:1px solid #1e3358;"
-            f"display:flex;align-items:center;gap:10px'>"
-            f"<span style='color:{_sc_col};font-size:14px;font-weight:700'>{stitle}</span>"
-            f"<span style='color:#4a6480;font-size:11px;background:#172038;border-radius:12px;"
-            f"padding:2px 8px'>{p}/{n}</span>"
-            f"<div style='flex:1;background:#172038;border-radius:3px;height:6px'>"
-            f"<div style='width:{pct:.0f}%;height:6px;background:{_bc};border-radius:3px'></div></div>"
-            f"<span style='color:{_bc};font-size:12px;font-weight:700'>{pct:.0f}%</span></div>"
+            f"<div style='margin-bottom:12px'>"
+            f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:4px'>"
+            f"<span style='color:{SC.get(sid,'#aaa')};font-size:13px;font-weight:bold'>{stitle}</span>"
+            f"<span style='color:#555;font-size:11px'>{p}/{n}</span>"
+            f"<div style='flex:1;background:#0e1628;border-radius:3px;height:5px'>"
+            f"<div style='width:{pct:.0f}%;height:5px;background:{bc};border-radius:3px'></div></div></div>"
             f"<table style='width:100%;border-collapse:collapse'>"
-            f"<thead><tr style='background:#111a2e'>"
-            f"<th style='padding:6px 10px;color:#5a7898;font-size:10px;text-align:left;"
-            f"text-transform:uppercase;letter-spacing:0.7px;font-weight:700'>Criterion</th>"
-            f"<th style='padding:6px 10px;color:#5a7898;font-size:10px;text-align:left;"
-            f"text-transform:uppercase;letter-spacing:0.7px;font-weight:700'>Why it matters</th>"
-            f"<th style='padding:6px 10px;color:#5a7898;font-size:10px;text-align:center;"
-            f"text-transform:uppercase;letter-spacing:0.7px;font-weight:700'>Target</th>"
-            f"<th style='padding:6px 10px;color:#5a7898;font-size:10px;text-align:right;"
-            f"text-transform:uppercase;letter-spacing:0.7px;font-weight:700'>Value</th>"
+            f"<thead><tr style='background:#0a1020'>"
+            f"<th style='padding:4px 8px;color:#555;font-size:10px;text-align:left'>Criterion</th>"
+            f"<th style='padding:4px 8px;color:#555;font-size:10px;text-align:left'>Why it matters</th>"
+            f"<th style='padding:4px 8px;color:#555;font-size:10px;text-align:center'>Target</th>"
+            f"<th style='padding:4px 8px;color:#555;font-size:10px;text-align:right'>Value</th>"
             f"</tr></thead><tbody>{rows}</tbody></table></div>",
             unsafe_allow_html=True
         )
     st.caption("Thresholds: Buffett / Graham / Beneish (1999). Quality metrics use 5Y medians. Not financial advice.")
+
+# ─── 5. News — improved sources + body snippets + temporal decay ────────────────
+TICKER_NAMES={
+    "AAV":"Asia Aviation","ADVANC":"Advanced Info Service AIS","AEONTS":"Aeon Thana Sinsap",
+    "AMATA":"Amata Corporation industrial estate","AOT":"Airports of Thailand",
+    "AP":"AP Thailand property","AWC":"Asset World Corp hotel",
+    "BA":"Bangkok Airways","BAM":"Bangkok Commercial Asset Management",
+    "BANPU":"Banpu coal energy","BBL":"Bangkok Bank","BCH":"Bangkok Chain Hospital",
+    "BCP":"Bangchak Corporation","BCPG":"BCPG renewable energy",
+    "BDMS":"Bangkok Dusit Medical","BEM":"Bangkok Expressway Metro",
+    "BGRIM":"B.Grimm Power","BH":"Bumrungrad Hospital","BJC":"Berli Jucker",
+    "BLA":"Bangkok Life Assurance","BTG":"Betagro food","BTS":"BTS Group Holdings skytrain",
+    "CBG":"Carabao Group energy drink","CCET":"Cal-Comp Electronics Thailand",
+    "CENTEL":"Central Plaza Hotel","CHG":"Chularat Hospital","CK":"CH Karnchang construction",
+    "CKP":"CK Power","COCOCO":"Thai Coconut","COM7":"COM7 IT retail",
+    "CPALL":"CP All 7-Eleven","CPF":"Charoen Pokphand Foods","CPN":"Central Pattana mall",
+    "CRC":"Central Retail","DELTA":"Delta Electronics Thailand","DOHOME":"Do Home hardware",
+    "EA":"Energy Absolute","EGCO":"Electricity Generating EGCO","ERW":"Erawan Group hotel",
+    "GLOBAL":"Siam Global House","GPSC":"Global Power Synergy","GULF":"Gulf Development energy",
+    "GUNKUL":"Gunkul Engineering solar","HANA":"Hana Microelectronics","HMPRO":"HomePro hardware",
+    "ICHI":"Ichitan Group tea","IRPC":"IRPC petrochemicals","ITC":"i-Tail Corporation pet food",
+    "IVL":"Indorama Ventures","JAS":"Jasmine International telecom",
+    "JMART":"Jaymart Group electronics","JMT":"JMT Network Services",
+    "KBANK":"Kasikorn Bank","KCE":"KCE Electronics","KKP":"Kiatnakin Phatra bank",
+    "KTB":"Krungthai Bank","KTC":"Krungthai Card","LH":"Land and Houses property",
+    "M":"MK Restaurant Group","MEGA":"Mega Lifesciences","MINT":"Minor International hotel",
+    "MOSHI":"Moshi Moshi retail","MTC":"Muangthai Capital loan","OR":"PTT Oil Retail OR",
+    "OSP":"Osotspa beverage","PLANB":"Plan B Media advertising","PR9":"Praram 9 Hospital",
+    "PRM":"Prima Marine","PTT":"PTT Public Company oil","PTTEP":"PTT Exploration Production",
+    "PTTGC":"PTT Global Chemical","QH":"Quality Houses property","RATCH":"Ratch Group power",
+    "RCL":"Regional Container Lines","ROJNA":"Rojana Industrial Park",
+    "SAPPE":"Sappe beverage","SAWAD":"Srisawad Corporation","SCB":"SCB X Siam Commercial Bank",
+    "SCC":"Siam Cement SCG","SCGP":"SCG Packaging","SIRI":"Sansiri property",
+    "SISB":"SISB international school","SJWD":"SCGJWD Logistics","SKY":"Sky ICT",
+    "SNNP":"Srinanaporn snack","SPALI":"Supalai property","SPRC":"Star Petroleum Refining",
+    "STA":"Sri Trang Agro rubber","STGT":"Sri Trang Gloves","TASCO":"Tipco Asphalt",
+    "TCAP":"Thanachart Capital","TIDLOR":"Ngern Tid Lor","TISCO":"Tisco Financial Group",
+    "TLI":"Thai Life Insurance","TOP":"Thai Oil refinery","TRUE":"True Corporation telecom",
+    "TTB":"TMBThanachart Bank","TU":"Thai Union Group seafood","VGI":"VGI advertising","WHA":"WHA Corporation",
+    # MAI
+    "ADVICE":"Advice IT Infinite","ASK":"Asia Sermkij Leasing","A5":"Asset Five Group",
+    "BBGI":"BBGI biofuel","BEC":"BEC World channel 3","CHEWA":"Chewathai property",
+    "DITTO":"Ditto Thailand printing","EPG":"Eastern Polymer Group","FORTH":"Forth Corporation",
+    "GCAP":"Global Capital","KAMART":"KA Mart convenience store","MASTER":"Master Style fashion",
+    "MFEC":"MFEC technology","MBK":"MBK Center shopping","MONO":"Mono Next media",
+    "MORE":"More Return Capital","NETBAY":"Netbay","NEO":"NEO Corporate advisory",
+    "PLANET":"Planet Communication","PM":"Premier Marketing","RBF":"R&B Food Supply",
+    "RS":"RS Group media commerce","SCGD":"SCG Decor","SGC":"SG Capital",
+    "SKR":"Sakari Resources coal","SMPC":"Sahamitr Pressure Container","SPA":"Siam Wellness spa",
+    "SSP":"Sermsang Power","THRE":"Thai Reinsurance","TPCH":"TPC Consolidated power","VIH":"Srivichaivejvivat hospital",
+}
+TICKER_THAI={
+    "EA"   :["\u0e1e\u0e25\u0e31\u0e07\u0e07\u0e32\u0e19\u0e1a\u0e23\u0e34\u0e2a\u0e38\u0e17\u0e18\u0e34\u0e4c","\u0e2d\u0e21\u0e23 \u0e17\u0e2d\u0e07\u0e18\u0e34\u0e23\u0e32\u0e0a","EA \u0e2a\u0e2d\u0e1a\u0e2a\u0e27\u0e19"],
+    "PTT"  :["\u0e1b\u0e15\u0e17."],
+    "PTTEP":["\u0e1b\u0e15\u0e17\u0e2a\u0e2a."],
+    "AOT"  :["\u0e17\u0e2d\u0e17.","\u0e17\u0e48\u0e32\u0e2d\u0e32\u0e01\u0e32\u0e28\u0e22\u0e32\u0e19\u0e44\u0e17\u0e22"],
+    "KBANK":["\u0e01\u0e2a\u0e34\u0e01\u0e23\u0e44\u0e17\u0e22"],
+    "SCB"  :["\u0e44\u0e17\u0e22\u0e1e\u0e32\u0e13\u0e34\u0e0a\u0e22\u0e4c"],
+    "BBL"  :["\u0e01\u0e23\u0e38\u0e07\u0e40\u0e17\u0e1e\u0e41\u0e1a\u0e07\u0e01\u0e4c\u0e04\u0e4c"],
+    "KTB"  :["\u0e01\u0e23\u0e38\u0e07\u0e44\u0e17\u0e22"],
+    "GULF" :["\u0e01\u0e31\u0e25\u0e1f\u0e4c"],
+    "TOP"  :["\u0e44\u0e17\u0e22\u0e2d\u0e2d\u0e22\u0e25\u0e4c"],
+    "CPALL":["\u0e0b\u0e35\u0e1e\u0e35 \u0e2d\u0e2d\u0e25\u0e25\u0e4c","\u0e40\u0e0b\u0e40\u0e27\u0e48\u0e19"],
+    "TRUE" :["\u0e17\u0e23\u0e39 \u0e04\u0e2d\u0e23\u0e4c\u0e1b\u0e2d\u0e40\u0e23\u0e0a\u0e31\u0e48\u0e19","\u0e17\u0e23\u0e39\u0e21\u0e39\u0e1f"],
+    "ADVANC":["\u0e40\u0e2d\u0e44\u0e2d\u0e40\u0e2d\u0e2a","AIS"],
+    "BTS"  :["\u0e1a\u0e35\u0e17\u0e35\u0e40\u0e2d\u0e2a","\u0e23\u0e16\u0e44\u0e1f\u0e1f\u0e49\u0e32\u0e1a\u0e35\u0e17\u0e35\u0e40\u0e2d\u0e2a"],
+    "SAWAD":["\u0e28\u0e23\u0e35\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e34\u0e4c"],
+    "TIDLOR":["\u0e40\u0e07\u0e34\u0e19\u0e15\u0e34\u0e14\u0e25\u0e49\u0e2d"],
+    "MTC"  :["\u0e40\u0e21\u0e37\u0e2d\u0e07\u0e44\u0e17\u0e22\u0e41\u0e04\u0e1b\u0e1b\u0e34\u0e15\u0e2d\u0e25"],
+    "BDMS" :["\u0e1a\u0e32\u0e07\u0e01\u0e2d\u0e01 \u0e14\u0e38\u0e2a\u0e34\u0e15"],
+    "CPF"  :["\u0e40\u0e08\u0e23\u0e34\u0e0d\u0e42\u0e20\u0e04\u0e20\u0e31\u0e13\u0e11\u0e4c"],
+    "SCC"  :["\u0e1b\u0e39\u0e19\u0e0b\u0e35\u0e40\u0e21\u0e19\u0e15\u0e4c"],
+    "BANPU":["\u0e1a\u0e49\u0e32\u0e19\u0e1b\u0e39"],
+    "IVL"  :["Indorama"],
+}
+
+RISK_KW=[
+    (4,"Fraud/Corruption",["fraud","embezzl","corrupt","bribery","ponzi","money launder",
+                           "misappropriat","fictitious","kickback","fake invoice",
+                           "\u0e09\u0e49\u0e2d\u0e42\u0e01\u0e07","\u0e17\u0e38\u0e08\u0e23\u0e34\u0e15","\u0e42\u0e01\u0e07\u0e40\u0e07\u0e34\u0e19","\u0e22\u0e31\u0e01\u0e22\u0e2d\u0e01","\u0e1b\u0e25\u0e2d\u0e21"]),
+    (4,"Criminal Charges", ["arrested","indicted","criminal charge","prosecut","warrant","jail","prison","charged with",
+                           "\u0e08\u0e31\u0e1a\u0e01\u0e38\u0e21","\u0e04\u0e14\u0e35\u0e2d\u0e32\u0e0d\u0e32","\u0e2d\u0e2d\u0e01\u0e2b\u0e21\u0e32\u0e22\u0e08\u0e31\u0e1a","\u0e16\u0e39\u0e01\u0e08\u0e31\u0e1a"]),
+    (4,"Regulatory Action",["sec charges","suspended trading","trading halted","delisted","revoked license",
+                           "\u0e2b\u0e22\u0e38\u0e14\u0e0b\u0e37\u0e49\u0e2d\u0e02\u0e32\u0e22","\u0e16\u0e2d\u0e14\u0e17\u0e30\u0e40\u0e1a\u0e35\u0e22\u0e19"]),
+    (3,"Investigation",    ["investigat","probe","raided","subpoena","sec inquiry","dsi","special case",
+                           "\u0e2a\u0e2d\u0e1a\u0e2a\u0e27\u0e19","\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a","\u0e1a\u0e38\u0e01\u0e04\u0e49\u0e19","\u0e14\u0e2a\u0e2e."]),
+    (3,"Legal Action",     ["lawsuit","sued","litigation","court order","injunction","class action","filed complaint",
+                           "\u0e1f\u0e49\u0e2d\u0e07\u0e23\u0e49\u0e2d\u0e07","\u0e23\u0e49\u0e2d\u0e07\u0e17\u0e38\u0e01\u0e02\u0e4c","\u0e28\u0e32\u0e25"]),
+    (3,"Mgmt Misconduct",  ["ceo resign","fired","dismissed","misconduct","insider trading","executive arrested","management arrested",
+                           "\u0e1c\u0e39\u0e49\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23\u0e25\u0e32\u0e2d\u0e2d\u0e01","\u0e1c\u0e39\u0e49\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23\u0e16\u0e39\u0e01\u0e08\u0e31\u0e1a"]),
+    (2,"Accounting/Audit", ["restat","qualified opinion","going concern","material weakness","auditor resign","delayed filing","falsif",
+                           "\u0e07\u0e1a\u0e01\u0e32\u0e23\u0e40\u0e07\u0e34\u0e19\u0e41\u0e01\u0e49\u0e44\u0e02"]),
+    (2,"Regulatory Warning",["warning","penalt","violation","non-complian","fine imposed","sanction",
+                            "\u0e1b\u0e23\u0e31\u0e1a","\u0e42\u0e17\u0e29","\u0e40\u0e15\u0e37\u0e2d\u0e19"]),
+    (2,"Related Party",    ["related party","self-dealing","tunneling","undisclosed transaction",
+                           "\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e01\u0e31\u0e1a\u0e1a\u0e38\u0e04\u0e04\u0e25\u0e17\u0e35\u0e48\u0e40\u0e01\u0e35\u0e48\u0e22\u0e27\u0e02\u0e49\u0e2d\u0e07"]),
+    (1,"Controversy",      ["scandal","controversy","boycott","\u0e41\u0e09","\u0e01\u0e23\u0e30\u0e41\u0e2a"]),
+]
+POS_KW=["award","record profit","upgraded","buy rating","dividend increase",
+        "\u0e01\u0e33\u0e44\u0e23\u0e2a\u0e39\u0e07\u0e2a\u0e38\u0e14"]
+
 
 
 def _classify(text):
@@ -1185,7 +983,7 @@ def fetch_all_news(ticker):
 def render_news_st(ticker, articles):
     base=ticker.replace(".BK","")
     if not articles:
-        st.info(f"No news found for {base}. Try searching Bangkok Post directly.")
+        st.info(f"No news found for {base}. Try broadening by searching Bangkok Post directly.")
         return
     now=_dt.now()
     max_sev=0; flagged=0; positives=0
@@ -1195,55 +993,220 @@ def render_news_st(ticker, articles):
         if sev>=3: flagged+=1
         if is_pos: positives+=1
         if sev>max_sev: max_sev=sev
-    if max_sev>=4 or flagged>=3:   ov="🚨 High Risk";  ov_c="#ff5566"
-    elif max_sev>=3 or flagged>=1: ov="⚠️ Caution";    ov_c="#f5c842"
-    else:                           ov="✅ Clean";       ov_c="#22d68a"
-    _nh = (
-        "<div style='background:#111a2e;border:1px solid #1e3358;border-radius:10px;"
-        "padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap'>"
-        "<span style='color:#00c8f8;font-size:17px;font-weight:700'>"
-        f"📰 {base} News</span>"
-        "<div style='width:1px;height:22px;background:#2a4570'></div>"
-        f"<span style='color:{ov_c};font-size:13px;font-weight:700'>{ov}</span>"
-        f"<span style='color:#4a6480;font-size:11px;margin-left:auto'>"
-        f"{len(articles)} articles · "
-        f"<b style='color:#dce9ff'>{flagged}</b> flagged · "
-        f"<b style='color:#22d68a'>{positives}</b> positive</span></div>"
+    if max_sev>=4 or flagged>=3:   ov="🚨 High Risk";  ov_c="#ef5350"
+    elif max_sev>=3 or flagged>=1: ov="⚠️ Caution";    ov_c="#f0c040"
+    else:                           ov="✅ Clean";       ov_c="#4ecca3"
+    st.markdown(
+        f"<div style='display:flex;align-items:center;gap:16px;margin-bottom:12px'>"
+        f"<span style='color:#00d4ff;font-size:16px;font-weight:bold'>📰 {base} News</span>"
+        f"<span style='color:{ov_c};font-size:14px;font-weight:bold'>{ov}</span>"
+        f"<span style='color:#555;font-size:11px'>{len(articles)} articles · "
+        f"{flagged} flagged · {positives} positive</span></div>",
+        unsafe_allow_html=True
     )
-    st.markdown(_nh, unsafe_allow_html=True)
-    SEV_C={4:"#ff1744",3:"#ff5566",2:"#f5c842",1:"#8ba8cc",0:"#2a4570"}
+    SEV_C={4:"#ff1744",3:"#ef5350",2:"#f0c040",1:"#aaaaaa",0:"#444444"}
     SEV_L={4:"CRITICAL",3:"HIGH",2:"MEDIUM",1:"LOW",0:""}
     for art in articles:
         title=art.get("title",""); link=art.get("link","")
-        src2=art.get("source",""); date_s=art.get("date",""); snip=art.get("snippet","")
+        src=art.get("source",""); date_s=art.get("date",""); snip=art.get("snippet","")
         sev,cat,is_pos=_classify(title+" "+snip)
+        # Temporal decay
         age_days=999
         try: age_days=(now-_dt.strptime(date_s,"%Y-%m-%d")).days
         except: pass
         opacity=1.0 if age_days<=90 else (0.65 if age_days<=365 else 0.35)
-        if is_pos: bdr="#22d68a"; lbl="✅ POSITIVE"
+        if is_pos: bdr="#4ecca3"; lbl="✅ POSITIVE"
         elif sev>0: bdr=SEV_C[sev]; lbl=f"{'🚨' if sev>=4 else '🔴' if sev>=3 else '🟡'} {SEV_L[sev]}: {cat}"
-        else: bdr="#1e3358"; lbl=""
-        age_note="" if age_days<=365 else f" · <span style='color:#f5c842'>⏰ {age_days//365}y ago</span>"
-        snip_html=(f"<div style='color:#5a7898;font-size:11px;margin-top:6px;line-height:1.5;"
-                   f"border-top:1px solid #172038;padding-top:6px'>{snip[:200]}…</div>") if snip and sev>0 else ""
-        _flag = (f"<span style='color:{bdr};font-weight:700;padding:1px 7px;"
-                 f"border-radius:4px;background:{bdr}22'>{lbl}</span>") if lbl else ""
-        _card = (
-            f"<div style='border-left:3px solid {bdr};padding:10px 14px;margin-bottom:6px;"
-            f"background:#0e1830;border-radius:0 8px 8px 0;opacity:{opacity}'>"
-            f"<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:10px'>"
-            f"<a href='{link}' target='_blank' style='color:#c8dcf8;text-decoration:none;"
-            f"font-size:13px;flex:1;line-height:1.55;font-weight:500'>{title}</a>"
-            f"<span style='color:#4a6480;font-size:10px;white-space:nowrap;background:#172038;"
-            f"padding:2px 8px;border-radius:4px;flex-shrink:0'>{src2}</span></div>"
-            f"<div style='color:#4a6480;font-size:10px;margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center'>"
-            f"<span>📅 {date_s}</span>{age_note}{_flag}</div>"
-            f"{snip_html}</div>"
+        else: bdr="#1e3a5f"; lbl=""
+        age_note="" if age_days<=365 else f" · <span style='color:#f0c040'>⏰ {age_days//365}y ago</span>"
+        snip_html=f"<br><span style='color:#888;font-size:10px'>{snip[:180]}…</span>" if snip and sev>0 else ""
+        st.markdown(
+            f"<div style='border-left:3px solid {bdr};padding:6px 12px;margin-bottom:5px;"
+            f"background:#0a1020;border-radius:0 4px 4px 0;opacity:{opacity}'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:flex-start'>"
+            f"<a href='{link}' target='_blank' style='color:#ddd;text-decoration:none;font-size:12px;flex:1'>{title}</a>"
+            f"<span style='color:#555;font-size:10px;white-space:nowrap;margin-left:8px'>{src}</span></div>"
+            f"<div style='color:#555;font-size:10px;margin-top:2px'>{date_s}{age_note}"
+            f"{' · <span style=\"color:'+bdr+';font-weight:bold\">'+lbl+'</span>' if lbl else ''}"
+            f"</div>{snip_html}</div>",
+            unsafe_allow_html=True
         )
-        st.markdown(_card, unsafe_allow_html=True)
 
+def _classify(text):
+    t=text.lower(); bs,bc=0,None
+    for sev,cat,kws in RISK_KW:
+        if any(kw in t for kw in kws) and sev>bs: bs,bc=sev,cat
+    return bs,bc,any(kw in t for kw in POS_KW)
 
+def _company_name(base): return TICKER_NAMES.get(base, f"{base} Thailand")
+
+def _is_relevant(title, base, trusted=False):
+    if trusted: return True
+    t=title.lower(); name=_company_name(base).lower()
+    skip={"thai","group","holdings","public","company","thailand","limited","stock",
+          "property","power","energy","bank","hotel","hospital","retail","media",
+          "advertising","hardware","beverage","insurance","refinery","telecom",
+          "cement","chemical","poultry","rubber","seafood","food"}
+    words=[w for w in name.split() if len(w)>3 and w not in skip]
+    if any(w in t for w in words): return True
+    thai_terms=TICKER_THAI.get(base,[])
+    if any(th.lower() in t for th in thai_terms): return True
+    if _re.search(r'(?<![a-z])'+_re.escape(base.lower())+r'(?![a-z])',t,_re.I): return True
+    return False
+
+def _google_rss(query, n=8):
+    out=[]
+    try:
+        url="https://news.google.com/rss/search?q="+_uparse.quote(query)+"&hl=en&gl=TH&ceid=TH:en"
+        req=_ureq.Request(url,headers={"User-Agent":"Mozilla/5.0"})
+        with _ureq.urlopen(req,timeout=10) as r: root=_ET.fromstring(r.read())
+        for item in root.findall(".//item")[:n]:
+            title=_html_lib.unescape(item.findtext("title",""))
+            link=item.findtext("link","")
+            pub=item.findtext("pubDate","")
+            desc=_html_lib.unescape(item.findtext("description",""))
+            src=item.find("{https://news.google.com/rss}source")
+            try: date=_dt.strptime(pub[:25],"%a, %d %b %Y %H:%M:%S").strftime("%Y-%m-%d")
+            except: date=pub[:10]
+            out.append({"title":title,"link":link,"source":src.text if src else "Google News",
+                        "date":date,"snippet":_re.sub(r'<[^>]+>',' ',desc)[:300]})
+    except: pass
+    return out
+
+def _bkk_post_rss(base, n=12):
+    """Bangkok Post business feed — includes description snippet."""
+    out=[]
+    try:
+        url="https://www.bangkokpost.com/rss/data/business.xml"
+        req=_ureq.Request(url,headers={"User-Agent":"Mozilla/5.0"})
+        with _ureq.urlopen(req,timeout=8) as r: root=_ET.fromstring(r.read())
+        name=_company_name(base).lower()
+        skip={"thai","group","holdings","public","company","thailand","limited","stock",
+              "property","power","energy","bank","hotel"}
+        words=[w for w in name.split() if len(w)>3 and w not in skip]
+        thai_terms=[t.lower() for t in TICKER_THAI.get(base,[])]
+        for item in root.findall(".//item"):
+            title=_html_lib.unescape(item.findtext("title",""))
+            desc=_html_lib.unescape(item.findtext("description",""))
+            combined=(title+" "+desc).lower()
+            if (any(w in combined for w in words) or
+                any(th in combined for th in thai_terms) or
+                base.lower() in combined):
+                link=item.findtext("link","")
+                pub=item.findtext("pubDate","")
+                try: date=_dt.strptime(pub[:25],"%a, %d %b %Y %H:%M:%S").strftime("%Y-%m-%d")
+                except: date=pub[:10]
+                out.append({"title":title,"link":link,"source":"Bangkok Post",
+                            "date":date,"snippet":_re.sub(r'<[^>]+>',' ',desc)[:300]})
+                if len(out)>=n: break
+    except: pass
+    return out
+
+def _yf_news(ticker, n=12):
+    out=[]
+    try:
+        for art in (yf.Ticker(ticker).news or [])[:n]:
+            ct=art.get("content",{})
+            title=ct.get("title",art.get("title",""))
+            link=(ct.get("canonicalUrl") or {}).get("url","") or (ct.get("clickThroughUrl") or {}).get("url","")
+            pub=art.get("providerPublishTime",0)
+            date=_dt.fromtimestamp(pub,tz=_tz.utc).strftime("%Y-%m-%d") if pub else ""
+            if title: out.append({"title":title,"link":link,"source":"Yahoo Finance",
+                                  "date":date,"snippet":""})
+    except: pass
+    return out
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_all_news(ticker):
+    base=ticker.replace(".BK","")
+    name=_company_name(base)
+    thai_terms=TICKER_THAI.get(base,[])
+    raw=[dict(i,trusted=True) for i in _yf_news(ticker)]
+    # English Google queries
+    for q in [f'"{name}"', f'"{name}" fraud investigation scandal',
+              f'"{name}" SEC DSI audit lawsuit OR criminal']:
+        raw+=[dict(i,trusted=True) for i in _google_rss(q,n=8)]
+    # Thai Google queries (critical for Thai fraud coverage)
+    if thai_terms:
+        primary=thai_terms[0]
+        for q in [f'"{primary}"',
+                  f'"{primary}" \u0e17\u0e38\u0e08\u0e23\u0e34\u0e15 \u0e2a\u0e2d\u0e1a\u0e2a\u0e27\u0e19',
+                  f'"{primary}" \u0e01.\u0e25.\u0e15. \u0e14\u0e2a\u0e2e.']:
+            raw+=[dict(i,trusted=True) for i in _google_rss(q,n=6)]
+    # Bangkok Post — rich snippets, company-filtered
+    raw+=[dict(i,trusted=True) for i in _bkk_post_rss(base,n=10)]
+    # Broad Thai stock query (lower trust)
+    raw+=[dict(i,trusted=False) for i in _google_rss(f'{base} \u0e2a\u0e15\u0e4a\u0e2d\u0e01 \u0e2a\u0e2d\u0e1a\u0e2a\u0e27\u0e19',n=4)]
+
+    # Deduplicate + relevance filter
+    seen=set(); out=[]
+    for item in raw:
+        title=item.get("title",""); trusted=item.get("trusted",False)
+        k=title[:48].lower().strip()
+        if not k or k in seen: continue
+        if not _is_relevant(title,base,trusted=trusted): continue
+        # For untrusted items, also check snippet
+        snippet=item.get("snippet","")
+        if not trusted and snippet and not _is_relevant(snippet,base,trusted=False):
+            continue
+        seen.add(k)
+        out.append({kk:vv for kk,vv in item.items() if kk!="trusted"})
+    out.sort(key=lambda x: x.get("date",""),reverse=True)
+    return out
+
+def render_news_st(ticker, articles):
+    base=ticker.replace(".BK","")
+    if not articles:
+        st.info(f"No news found for {base}. Try broadening by searching Bangkok Post directly.")
+        return
+    now=_dt.now()
+    max_sev=0; flagged=0; positives=0
+    for art in articles:
+        t=art.get("title",""); snip=art.get("snippet","")
+        sev,cat,is_pos=_classify(t+" "+snip)
+        if sev>=3: flagged+=1
+        if is_pos: positives+=1
+        if sev>max_sev: max_sev=sev
+    if max_sev>=4 or flagged>=3:   ov="🚨 High Risk";  ov_c="#ef5350"
+    elif max_sev>=3 or flagged>=1: ov="⚠️ Caution";    ov_c="#f0c040"
+    else:                           ov="✅ Clean";       ov_c="#4ecca3"
+    st.markdown(
+        f"<div style='display:flex;align-items:center;gap:16px;margin-bottom:12px'>"
+        f"<span style='color:#00d4ff;font-size:16px;font-weight:bold'>📰 {base} News</span>"
+        f"<span style='color:{ov_c};font-size:14px;font-weight:bold'>{ov}</span>"
+        f"<span style='color:#555;font-size:11px'>{len(articles)} articles · "
+        f"{flagged} flagged · {positives} positive</span></div>",
+        unsafe_allow_html=True
+    )
+    SEV_C={4:"#ff1744",3:"#ef5350",2:"#f0c040",1:"#aaaaaa",0:"#444444"}
+    SEV_L={4:"CRITICAL",3:"HIGH",2:"MEDIUM",1:"LOW",0:""}
+    for art in articles:
+        title=art.get("title",""); link=art.get("link","")
+        src=art.get("source",""); date_s=art.get("date",""); snip=art.get("snippet","")
+        sev,cat,is_pos=_classify(title+" "+snip)
+        # Temporal decay
+        age_days=999
+        try: age_days=(now-_dt.strptime(date_s,"%Y-%m-%d")).days
+        except: pass
+        opacity=1.0 if age_days<=90 else (0.65 if age_days<=365 else 0.35)
+        if is_pos: bdr="#4ecca3"; lbl="✅ POSITIVE"
+        elif sev>0: bdr=SEV_C[sev]; lbl=f"{'🚨' if sev>=4 else '🔴' if sev>=3 else '🟡'} {SEV_L[sev]}: {cat}"
+        else: bdr="#1e3a5f"; lbl=""
+        age_note="" if age_days<=365 else f" · <span style='color:#f0c040'>⏰ {age_days//365}y ago</span>"
+        snip_html=f"<br><span style='color:#888;font-size:10px'>{snip[:180]}…</span>" if snip and sev>0 else ""
+        st.markdown(
+            f"<div style='border-left:3px solid {bdr};padding:6px 12px;margin-bottom:5px;"
+            f"background:#0a1020;border-radius:0 4px 4px 0;opacity:{opacity}'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:flex-start'>"
+            f"<a href='{link}' target='_blank' style='color:#ddd;text-decoration:none;font-size:12px;flex:1'>{title}</a>"
+            f"<span style='color:#555;font-size:10px;white-space:nowrap;margin-left:8px'>{src}</span></div>"
+            f"<div style='color:#555;font-size:10px;margin-top:2px'>{date_s}{age_note}"
+            f"{' · <span style=\"color:'+bdr+';font-weight:bold\">'+lbl+'</span>' if lbl else ''}"
+            f"</div>{snip_html}</div>",
+            unsafe_allow_html=True
+        )
+
+# ─── 6. Screener ────────────────────────────────────────────────────────────────
 def compute_quick_score(ticker_yf):
     try:
         res=compute_vi_scorecard(ticker_yf)
@@ -1308,15 +1271,12 @@ def compute_quick_score(ticker_yf):
                 "C%":round(sec_sc.get('C',(0,0,0))[2]),"D%":round(sec_sc.get('D',(0,0,0))[2]),
                 "E%":round(sec_sc.get('E',(0,0,0))[2])}
     except Exception as e:
-        base = ticker_yf.replace('.BK','')
-        return {"Ticker":base,"Company":TICKER_NAMES.get(base,""),
-                "VI Score":0,"Verdict":"Error",
+        return {"Ticker":ticker_yf.replace('.BK',''),"Company":"","VI Score":0,"Verdict":"Error",
                 "Rev CAGR%":None,"ROE%":None,"D/E":None,"P/E":None,"Div%":None,
-                "M-Score":None,"FCF+":False,"A%":0,"B%":0,"C%":0,"D%":0,"E%":0,
-                "_err":str(e)}
+                "M-Score":None,"FCF+":False,"A%":0,"B%":0,"C%":0,"D%":0,"E%":0}
 
 def _sc(p):
-    return "#22d68a" if p>=72 else ("#f5c842" if p>=55 else "#ff5566")
+    return "#4ecca3" if p>=72 else ("#f0c040" if p>=55 else "#ef5350")
 
 def _build_screener_page(rows):
     """Return a full standalone HTML page — safe to pass to components.html()."""
@@ -1327,12 +1287,12 @@ def _build_screener_page(rows):
         return f"<span style='color:{c}'>{fmt.format(v)}</span>"
 
     def badge(verdict):
-        if "Strong"   in verdict: bg,tc,ic="#0a2016","#22d68a","✅"
-        elif "Serious" in verdict or "Phantom" in verdict: bg,tc,ic="#220808","#ff5566","🚨"
-        elif "Beneish" in verdict: bg,tc,ic="#1e1600","#f5c842","⚠️"
-        elif "Research" in verdict: bg,tc,ic="#141200","#f5c842","⚠️"
-        elif "Avoid"   in verdict: bg,tc,ic="#180808","#ff5566","❌"
-        else: bg,tc,ic="#111","#8ba8cc",""
+        if "Strong"   in verdict: bg,tc,ic="#0a2016","#4ecca3","✅"
+        elif "Serious" in verdict or "Phantom" in verdict: bg,tc,ic="#220808","#ef5350","🚨"
+        elif "Beneish" in verdict: bg,tc,ic="#1e1600","#f0c040","⚠️"
+        elif "Research" in verdict: bg,tc,ic="#141200","#d4b800","⚠️"
+        elif "Avoid"   in verdict: bg,tc,ic="#180808","#e05050","❌"
+        else: bg,tc,ic="#111","#888",""
         label = verdict.replace("✅ ","").replace("🚨 ","").replace("⚠️ ","").replace("❌ ","")
         return (f"<span style='background:{bg};color:{tc};padding:2px 10px;"
                 f"border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap'>"
@@ -1356,9 +1316,9 @@ def _build_screener_page(rows):
 
     def beneish(m):
         if m is None: return "<span style='color:#334'>—</span>"
-        if m > -1.78: c,l = "#ff5566","HIGH"
-        elif m > -2.22: c,l = "#f5c842","GREY"
-        else: c,l = "#22d68a","LOW"
+        if m > -1.78: c,l = "#ef5350","HIGH"
+        elif m > -2.22: c,l = "#f0c040","GREY"
+        else: c,l = "#4ecca3","LOW"
         return f"<span style='color:{c};font-size:11px'>{m:.2f} <b>{l}</b></span>"
 
     # Summary stats
@@ -1370,21 +1330,19 @@ def _build_screener_page(rows):
     avg_sc   = sum(r.get("VI Score",0) or 0 for r in rows) / len(rows) if rows else 0
 
     def stat(v, lbl, c):
-        return (f"<div style='background:#111a2e;border:1px solid #2a4570;border-radius:10px;"
-                f"padding:12px 16px;text-align:center;flex:1;min-width:100px;"
-                f"box-shadow:0 2px 12px rgba(0,0,0,0.3)'>"
-                f"<div style='font-size:24px;font-weight:800;color:{c};line-height:1.1'>{v}</div>"
-                f"<div style='font-size:10px;color:#6a88aa;margin-top:5px;font-weight:600;"
-                f"text-transform:uppercase;letter-spacing:0.6px'>{lbl}</div></div>")
+        return (f"<div style='background:#0a1220;border:1px solid #0e1e35;border-radius:8px;"
+                f"padding:10px 14px;text-align:center;flex:1;min-width:90px'>"
+                f"<div style='font-size:22px;font-weight:800;color:{c}'>{v}</div>"
+                f"<div style='font-size:10px;color:#446;margin-top:2px'>{lbl}</div></div>")
 
     summary = (
-        f"<div style='display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;padding:4px 2px'>"
-        + stat(f"{avg_sc:.0f}%","Avg Score","#00c8f8")
-        + stat(strong,  "Strong Buy",    "#22d68a")
-        + stat(research,"Research",      "#f5c842")
-        + stat(risk,    "Fraud Risk",    "#ff8c42")
-        + stat(avoid,   "Avoid",         "#ff5566")
-        + stat(serious, "Serious 🚨",    "#ff2244")
+        f"<div style='display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap'>"
+        + stat(f"{avg_sc:.0f}%","Avg Score","#00d4ff")
+        + stat(strong,  "✅ Strong Buy",    "#4ecca3")
+        + stat(research,"⚠️ Research More",  "#d4b800")
+        + stat(risk,    "⚠️ Fraud Risk",     "#f08020")
+        + stat(avoid,   "❌ Avoid",          "#e05050")
+        + stat(serious, "🚨 Serious",        "#ff2244")
         + "</div>"
     )
 
@@ -1393,51 +1351,49 @@ def _build_screener_page(rows):
     for i, r in enumerate(rows):
         score   = r.get("VI Score", 0) or 0
         sc      = _sc(score)
-        bg      = "#0e1830" if i % 2 == 0 else "#111e38"
+        bg      = "#07101f" if i % 2 == 0 else "#080e1c"
         ticker  = r.get("Ticker","")
         company = (r.get("Company","") or "")[:34]
-        TD = "padding:11px 10px;border-bottom:1px solid #1e3358;vertical-align:middle"
         trs += f"""
-        <tr style='background:{bg};border-bottom:1px solid #1e3358'>
-          <td style='{TD};color:#4a6480;font-size:11px;text-align:center;width:36px'>{i+1}</td>
-          <td style='{TD};min-width:130px'>
-            <div style='font-size:15px;font-weight:700;color:#e8f2ff;letter-spacing:-0.3px'>{ticker}</div>
-            <div style='font-size:10px;color:#5a7898;margin-top:2px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{company}</div>
+        <tr style='background:{bg};border-bottom:1px solid #0b1628'>
+          <td style='padding:10px 8px;color:#334;font-size:11px;text-align:center;width:30px'>{i+1}</td>
+          <td style='padding:10px 8px;min-width:120px'>
+            <div style='font-size:15px;font-weight:700;color:#e8f0ff'>{ticker}</div>
+            <div style='font-size:10px;color:#3a5070;margin-top:1px'>{company}</div>
           </td>
-          <td style='{TD}'>{badge(r.get("Verdict","—"))}</td>
-          <td style='{TD};text-align:center'>
+          <td style='padding:10px 8px'>{badge(r.get("Verdict","—"))}</td>
+          <td style='padding:10px 8px;text-align:center'>
             <div style='display:inline-flex;align-items:center;justify-content:center;
-                        width:44px;height:44px;border-radius:50%;border:2.5px solid {sc};
-                        font-size:14px;font-weight:800;color:{sc};background:rgba(0,0,0,0.3)'>{score:.0f}</div>
+                        width:40px;height:40px;border-radius:50%;border:2.5px solid {sc};
+                        font-size:13px;font-weight:800;color:{sc}'>{score:.0f}</div>
           </td>
-          <td style='{TD}'>{mini_bars(r)}</td>
-          <td style='{TD};font-family:"JetBrains Mono",monospace;font-size:12px;text-align:right'>{cell(r.get("Rev CAGR%"),"{:.1f}%",lambda v:v>=7,lambda v:v<0)}</td>
-          <td style='{TD};font-family:"JetBrains Mono",monospace;font-size:12px;text-align:right'>{cell(r.get("ROE%"),"{:.1f}%",lambda v:v>=15,lambda v:v<8)}</td>
-          <td style='{TD};font-family:"JetBrains Mono",monospace;font-size:12px;text-align:right'>{cell(r.get("D/E"),"{:.2f}×",lambda v:v<0.5,lambda v:v>1.5)}</td>
-          <td style='{TD};font-family:"JetBrains Mono",monospace;font-size:12px;text-align:right'>{cell(r.get("P/E"),"{:.1f}×",lambda v:0<v<20,lambda v:v>35 or v<=0)}</td>
-          <td style='{TD};font-family:"JetBrains Mono",monospace;font-size:12px;text-align:right'>{cell(r.get("Div%"),"{:.1f}%",lambda v:v>=2,lambda v:v<0.5)}</td>
-          <td style='{TD}'>{beneish(r.get("M-Score"))}</td>
-          <td style='{TD};text-align:center;font-size:15px'>
-            {"<span style='color:#22d68a;font-weight:700'>✔</span>" if r.get("FCF+") else "<span style='color:#2a4060'>✘</span>"}
+          <td style='padding:10px 8px'>{mini_bars(r)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("Rev CAGR%"),"{:.1f}%",lambda v:v>=7,lambda v:v<0)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("ROE%"),"{:.1f}%",lambda v:v>=15,lambda v:v<8)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("D/E"),"{:.2f}×",lambda v:v<0.5,lambda v:v>1.5)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("P/E"),"{:.1f}×",lambda v:0<v<20,lambda v:v>35 or v<=0)}</td>
+          <td style='padding:10px 8px;font-family:monospace;font-size:12px'>{cell(r.get("Div%"),"{:.1f}%",lambda v:v>=2,lambda v:v<0.5)}</td>
+          <td style='padding:10px 8px'>{beneish(r.get("M-Score"))}</td>
+          <td style='padding:10px 8px;text-align:center;font-size:12px'>
+            {"<span style='color:#4ecca3'>✔</span>" if r.get("FCF+") else "<span style='color:#445'>✘</span>"}
           </td>
         </tr>"""
 
-    th = ("background:#0e1830;color:#8ba8cc;font-size:10px;font-weight:700;"
-          "padding:10px 10px;text-transform:uppercase;letter-spacing:0.8px;"
-          "text-align:left;border-bottom:2px solid #2a4570;white-space:nowrap;"
-          "position:sticky;top:0;z-index:10")
+    th = ("background:#060d1a;color:#3a5878;font-size:10px;font-weight:600;"
+          "padding:8px 8px;text-transform:uppercase;letter-spacing:0.5px;"
+          "text-align:left;border-bottom:1px solid #0e1e35;white-space:nowrap")
     header = (
         f"<tr>"
-        f"<th style='{th};width:36px;text-align:center'>#</th>"
+        f"<th style='{th}'>#</th>"
         f"<th style='{th}'>Stock</th>"
         f"<th style='{th}'>Verdict</th>"
         f"<th style='{th};text-align:center'>Score</th>"
-        f"<th style='{th}'>Q · H · I · F · V</th>"
-        f"<th style='{th};text-align:right'>Rev CAGR</th>"
-        f"<th style='{th};text-align:right'>ROE</th>"
-        f"<th style='{th};text-align:right'>D/E</th>"
-        f"<th style='{th};text-align:right'>P/E</th>"
-        f"<th style='{th};text-align:right'>Div%</th>"
+        f"<th style='{th}'>Q H I F V</th>"
+        f"<th style='{th}'>Rev CAGR</th>"
+        f"<th style='{th}'>ROE</th>"
+        f"<th style='{th}'>D/E</th>"
+        f"<th style='{th}'>P/E</th>"
+        f"<th style='{th}'>Div%</th>"
         f"<th style='{th}'>Beneish M</th>"
         f"<th style='{th};text-align:center'>FCF+</th>"
         f"</tr>"
@@ -1450,20 +1406,15 @@ def _build_screener_page(rows):
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset='utf-8'>
-<link rel='preconnect' href='https://fonts.googleapis.com'>
-<link href='https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@500;700&display=swap' rel='stylesheet'>
 <style>
   * {{ box-sizing:border-box; margin:0; padding:0; }}
-  body {{ background:#0b1120; font-family:'Sora',system-ui,sans-serif;
-          color:#dce9ff; padding:0; }}
-  .wrap {{ padding:6px 4px 16px; }}
-  table {{ width:100%; border-collapse:collapse; min-width:900px; }}
-  tbody tr {{ transition: background 0.1s; cursor:pointer; }}
-  tbody tr:hover {{ background:#1a2e50 !important; }}
-  ::-webkit-scrollbar {{ height:6px; width:6px; background:#111a2e; }}
-  ::-webkit-scrollbar-thumb {{ background:#2a4570; border-radius:4px; }}
-  ::-webkit-scrollbar-thumb:hover {{ background:#00c8f8; }}
-  ::-webkit-scrollbar-corner {{ background:#111a2e; }}
+  body {{ background:#07101f; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+          color:#d0d8e8; padding:0; }}
+  .wrap {{ padding:4px 2px 12px; }}
+  table {{ width:100%; border-collapse:collapse; }}
+  tbody tr:hover {{ background:#0d1a2e !important; }}
+  ::-webkit-scrollbar {{ height:5px; background:#07101f; }}
+  ::-webkit-scrollbar-thumb {{ background:#1e3a5f; border-radius:3px; }}
 </style>
 </head><body>
 <div class='wrap'>
@@ -1479,14 +1430,9 @@ def _build_screener_page(rows):
 
 def show_screener_tab():
     st.markdown(
-        "<div style='margin-bottom:16px'>"
-        "<h3 style='color:#00c8f8;margin:0 0 8px;letter-spacing:-0.3px'>🔍 Screener</h3>"
-        "<p style='color:#5a7898;font-size:13px;margin:0;line-height:1.7'>"
-        "Batch VI-scorecard · "
-        "<span style='color:#22d68a;font-weight:600'>●</span> ≥72% Strong Buy &nbsp;"
-        "<span style='color:#f5c842;font-weight:600'>●</span> ≥55% Research &nbsp;"
-        "<span style='color:#ff5566;font-weight:600'>●</span> Below &nbsp;·&nbsp; "
-        "Q=Quality H=Health I=Integrity F=Fraud V=Valuation</p></div>",
+        "<h3 style='color:#00d4ff;margin-bottom:2px'>🔍 Screener</h3>"
+        "<p style='color:#3a5070;font-size:13px;margin:0 0 16px'>Batch VI-scorecard across SET100 / MAI. "
+        "Green ring ≥72% · yellow ≥55% · red below.</p>",
         unsafe_allow_html=True
     )
 
@@ -1501,15 +1447,13 @@ def show_screener_tab():
 
     if not run and "screener_results" not in st.session_state:
         st.markdown(
-            "<div style='background:#111a2e;border:2px dashed #2a4570;border-radius:12px;"
-            "padding:48px;text-align:center;margin-top:20px'>"
-            "<div style='font-size:44px'>🔍</div>"
-            "<div style='color:#00c8f8;font-size:18px;margin:14px 0 8px;font-weight:700'>Ready to screen</div>"
-            "<div style='color:#5a7898;font-size:13px;line-height:1.7'>"
-            "Pick a universe, then click <b style='color:#dce9ff'>▶ Run Screener</b></div>"
-            "<div style='color:#3a5878;font-size:11px;margin-top:12px;padding:8px 16px;"
-            "background:#0e1830;border-radius:6px;display:inline-block'>"
-            "⏱ SET100 ≈ 3–5 min first run · results cached 6 hours</div></div>",
+            "<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;"
+            "padding:40px;text-align:center;margin-top:20px'>"
+            "<div style='font-size:40px'>🔍</div>"
+            "<div style='color:#00d4ff;font-size:17px;margin:10px 0 6px;font-weight:600'>Ready to screen</div>"
+            "<div style='color:#3a5070;font-size:13px'>Pick a universe above and hit <b style='color:#8ab'>Run Screener</b></div>"
+            "<div style='color:#253545;font-size:11px;margin-top:8px'>SET100 = ~3–5 min first run · results cached 6h</div>"
+            "</div>",
             unsafe_allow_html=True
         )
         return
@@ -1523,18 +1467,17 @@ def show_screener_tab():
         if not pool: st.warning("No tickers match this filter."); return
 
         bar = st.progress(0)
-        results = []
-        errors  = []
+        results = []; errors = []
         for i, t in enumerate(pool):
             bar.progress((i+1)/len(pool), text=f"Analysing **{t}** · {i+1}/{len(pool)}")
             r = compute_quick_score(to_yf(t))
             results.append(r)
-            if r.get("Verdict") == "Error":
-                errors.append(t)
+            if r.get("Verdict") == "Error": errors.append(t)
         bar.empty()
-        ok = len(results) - len(errors)
-        st.success(f"✅ Done — {ok}/{len(results)} stocks analysed" +
-                   (f"  ·  ⚠️ {len(errors)} failed ({', '.join(errors[:5])}{'…' if len(errors)>5 else ''})" if errors else ""))
+        ok_n = len(results) - len(errors)
+        msg = f"Done — {ok_n}/{len(results)} stocks analysed"
+        if errors: msg += f"  ·  {len(errors)} no data: {', '.join(errors[:5])}"
+        st.success(f"✅ {msg}")
         st.session_state["screener_results"] = results
         st.session_state["screener_meta"] = f"{universe} · {sector_f}"
 
@@ -1547,14 +1490,8 @@ def show_screener_tab():
     filtered.sort(key=lambda r: (r.get(sort_by) or 0), reverse=not asc)
 
     meta = st.session_state.get("screener_meta","")
-    st.markdown(
-        f"<div style='background:#111a2e;border:1px solid #1e3358;border-radius:8px;"
-        f"padding:8px 14px;margin:8px 0;font-size:12px;color:#8ba8cc'>"
-        f"<b style='color:#dce9ff'>{len(filtered)}</b> stocks · {meta} · "
-        f"min <b style='color:#dce9ff'>{min_score}%</b> · "
-        f"sorted by <b style='color:#00c8f8'>{sort_by}</b></div>",
-        unsafe_allow_html=True
-    )
+    st.caption(f"**{len(filtered)}** stocks · {meta} · min {min_score}% · sorted by {sort_by}  "
+               f"· Q=Quality  H=Health  I=Integrity  F=Fraud  V=Valuation")
 
     # ── Quick filters row ────────────────────────────────────────────────
     fa, fb, fc, fd, fe = st.columns(5)
@@ -1590,10 +1527,11 @@ def show_screener_tab():
         st.info("No stocks match this filter.")
 
     # ── Drill-down ───────────────────────────────────────────────────────
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     st.markdown(
-        "<div style='margin:20px 0 10px;border-top:1px solid #1e3358;padding-top:16px'>"
-        "<div style='color:#8ba8cc;font-size:11px;font-weight:700;"
-        "text-transform:uppercase;letter-spacing:1px'>🔎 Deep Dive</div></div>",
+        "<div style='color:#6688aa;font-size:11px;font-weight:600;"
+        "text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px'>"
+        "🔎 Deep Dive</div>",
         unsafe_allow_html=True
     )
     tickers_shown = ["— pick a stock —"] + [r["Ticker"] for r in filtered]
@@ -1602,12 +1540,10 @@ def show_screener_tab():
     if drill and drill != "— pick a stock —":
         name = TICKER_NAMES.get(drill, "")
         st.markdown(
-            f"<div style='background:linear-gradient(135deg,#0e2248,#0a1830);"
-            f"border:1px solid #2a4570;border-radius:10px;"
-            f"padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px'>"
-            f"<span style='font-size:22px;font-weight:800;color:#00c8f8'>{drill}</span>"
-            f"<div style='width:1px;height:24px;background:#2a4570'></div>"
-            f"<span style='color:#8ba8cc;font-size:13px'>{name}</span></div>",
+            f"<div style='background:#080e1c;border:1px solid #1a2e48;border-radius:8px;"
+            f"padding:10px 18px;margin-bottom:12px;display:flex;align-items:center;gap:12px'>"
+            f"<span style='font-size:20px;font-weight:800;color:#00d4ff'>{drill}</span>"
+            f"<span style='color:#3a5070;font-size:13px'>{name}</span></div>",
             unsafe_allow_html=True
         )
         dt = st.tabs(["📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Scorecard","📰 News"])
@@ -1629,16 +1565,15 @@ def main():
     # ── Sidebar ──────────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown(
-            "<div style='background:#0e1a38;border:1px solid #2a4570;"
-            "border-radius:10px;padding:14px 16px;margin-bottom:12px'>"
-            "<div style='color:#00c8f8;font-size:20px;font-weight:800'>🏦 SET Analyser</div>"
-            "<div style='color:#5a7898;font-size:11px;margin-top:4px'>Value Investor Edition · H1 2025</div>"
+            "<div style='padding:4px 0 14px'>"
+            "<div style='color:#00d4ff;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
+            "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition · H1 2025</div>"
             "</div>",
             unsafe_allow_html=True
         )
 
         # ── Date range ───────────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'><span style='color:#00c8f8'>📅</span> Chart Start Date</div>", unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-label'>📅 Chart Start Date</div>", unsafe_allow_html=True)
         c1, c2 = st.columns([3, 2])
         with c1: start_year  = st.selectbox("Year",  [str(y) for y in range(2015,2026)], index=6, key="sy", label_visibility="collapsed")
         with c2: start_month = st.selectbox("Month", [f"{m:02d}" for m in range(1,13)], index=0, key="sm", label_visibility="collapsed")
@@ -1648,7 +1583,8 @@ def main():
 
         # ── SET100 multiselect ───────────────────────────────────────────────────
         st.markdown(
-            "<div class='sidebar-label'><span style='color:#00c8f8;font-size:14px'>●</span> SET100</div>",
+            "<div class='sidebar-label'>"
+            "<span style='color:#00d4ff'>●</span> SET100</div>",
             unsafe_allow_html=True
         )
         # Sector shortcut
@@ -1669,7 +1605,8 @@ def main():
 
         # ── MAI multiselect ──────────────────────────────────────────────────────
         st.markdown(
-            "<div class='sidebar-label'><span style='color:#22d68a;font-size:14px'>●</span> MAI</div>",
+            "<div class='sidebar-label'>"
+            "<span style='color:#4ecca3'>●</span> MAI</div>",
             unsafe_allow_html=True
         )
         mai_sel = st.multiselect(
@@ -1682,7 +1619,8 @@ def main():
 
         # ── DR multiselect ───────────────────────────────────────────────────────
         st.markdown(
-            "<div class='sidebar-label'><span style='color:#f5c842;font-size:14px'>●</span> DR / ETF</div>",
+            "<div class='sidebar-label'>"
+            "<span style='color:#f0c040'>●</span> DR / ETF</div>",
             unsafe_allow_html=True
         )
         dr_sel = st.multiselect(
@@ -1698,26 +1636,15 @@ def main():
         if selected_base:
             names_preview = ", ".join(selected_base[:6]) + ("…" if len(selected_base) > 6 else "")
             st.markdown(
-                f"<div style='background:rgba(0,200,248,0.08);border:1px solid rgba(0,200,248,0.3);"
-                f"border-radius:8px;padding:10px 14px;margin-top:8px'>"
-                f"<div style='color:#22d68a;font-weight:700;font-size:15px'>{len(selected_base)} selected</div>"
-                f"<div style='color:#8ba8cc;font-size:11px;margin-top:3px'>{names_preview}</div>"
+                f"<div style='background:#080f1e;border:1px solid #1a2e48;border-radius:6px;"
+                f"padding:8px 12px;margin-top:4px'>"
+                f"<span style='color:#4ecca3;font-weight:700'>{len(selected_base)} selected</span>"
+                f"<span style='color:#2a4060;font-size:11px'> · {names_preview}</span>"
                 f"</div>",
                 unsafe_allow_html=True
             )
 
         st.markdown("<hr>", unsafe_allow_html=True)
-        _ds_ok, _ds_msg = _check_yfinance()
-        if _ds_ok:
-            st.markdown("<div style='background:rgba(34,214,138,0.1);border:1px solid #22d68a;"
-                        "border-radius:6px;padding:6px 10px;font-size:11px;color:#22d68a;"
-                        "margin-bottom:8px'>🟢 Data feed OK</div>", unsafe_allow_html=True)
-        else:
-            st.markdown(
-                f"<div style='background:rgba(255,85,102,0.1);border:1px solid #ff5566;"
-                f"border-radius:6px;padding:6px 10px;font-size:11px;color:#ff5566;"
-                f"margin-bottom:8px'>🔴 Data issue: {_ds_msg[:60]}</div>",
-                unsafe_allow_html=True)
         if st.button("🗑 Clear cache", use_container_width=True, help="Force-refresh all data"):
             st.cache_data.clear(); st.rerun()
 
@@ -1727,15 +1654,12 @@ def main():
 
     def _need_selection():
         st.markdown(
-            "<div style='background:#111a2e;border:2px dashed #2a4570;border-radius:12px;"
-            "padding:48px;text-align:center;margin-top:24px'>"
-            "<div style='font-size:44px'>🏦</div>"
-            "<div style='color:#00c8f8;font-size:18px;margin:14px 0 8px;font-weight:700'>"
-            "Select stocks in the sidebar</div>"
-            "<div style='color:#5a7898;font-size:13px;line-height:1.7'>"
-            "Use the <b style='color:#8ba8cc'>SET100</b>, "
-            "<b style='color:#8ba8cc'>MAI</b>, or "
-            "<b style='color:#8ba8cc'>DR/ETF</b> selectors on the left.</div>"
+            "<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;"
+            "padding:36px;text-align:center;margin-top:20px'>"
+            "<div style='font-size:36px'>←</div>"
+            "<div style='color:#00d4ff;font-size:16px;margin:10px 0 6px;font-weight:600'>"
+            "Pick a stock in the sidebar</div>"
+            "<div style='color:#2a4060;font-size:13px'>Use the SET100 / MAI / DR selectors on the left</div>"
             "</div>",
             unsafe_allow_html=True
         )
@@ -1757,11 +1681,9 @@ def main():
                 base = ticker.replace('.BK','')
                 name = TICKER_NAMES.get(base, "")
                 st.markdown(
-                    f"<div style='background:#0e1830;border:1px solid #1e3358;border-radius:8px;"
-                    f"padding:10px 16px;margin:12px 0 8px;display:flex;align-items:center;gap:12px'>"
-                    f"<span style='color:#00c8f8;font-size:18px;font-weight:800'>{base}</span>"
-                    f"<div style='width:1px;height:20px;background:#1e3358'></div>"
-                    f"<span style='color:#8ba8cc;font-size:13px'>{name}</span></div>",
+                    f"<div style='display:flex;align-items:baseline;gap:10px;margin:8px 0 4px'>"
+                    f"<span style='color:#00d4ff;font-size:16px;font-weight:700'>{base}</span>"
+                    f"<span style='color:#3a5070;font-size:13px'>{name}</span></div>",
                     unsafe_allow_html=True
                 )
                 d = fetch_all(ticker)
@@ -1795,10 +1717,11 @@ def main():
                     render_news_st(ticker, fetch_all_news(ticker))
                 st.markdown("<hr>", unsafe_allow_html=True)
 
-if __name__ == "__main__" or True:
+main()
+if __name__ == '__main__' or True:
     try:
         main()
     except Exception as _e:
-        import traceback
-        st.error(f"❌ App error: {_e}")
-        st.code(traceback.format_exc())
+        import traceback as _tb
+        st.error(f'App error: {_e}')
+        st.code(_tb.format_exc())
