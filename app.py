@@ -37,37 +37,68 @@ st.markdown("""
 html,body,.stApp{background:var(--bg)!important;color:var(--txt)!important;
   font-family:system-ui,sans-serif!important;}
 .block-container{padding:1.2rem 2rem 2rem!important;max-width:1440px!important;}
-#MainMenu,footer,[data-testid="stToolbar"],[data-testid="stStatusWidget"]
+#MainMenu,footer,[data-testid="stStatusWidget"]
   {visibility:hidden!important;}
+[data-testid="stToolbar"]{visibility:visible!important;}
 [data-testid="stDecoration"]{display:none!important;}
 *{scrollbar-width:thin;scrollbar-color:var(--border2) var(--bg2);}
 ::-webkit-scrollbar{width:7px;height:7px;background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--accent);}
-/* Sidebar — keep toggle button accessible */
+/* ── Sidebar panel ── */
 section[data-testid="stSidebar"]{
   background:var(--bg2)!important;
   border-right:1px solid var(--border)!important;}
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span{color:var(--txt2)!important;}
-/* Header: transparent + minimal height, but keep the sidebar toggle reachable */
+/* ── Header: keep transparent but don't zero-out height ── */
 header[data-testid="stHeader"]{
   background:transparent!important;
   border-bottom:none!important;}
-/* Sidebar collapse/expand button — always visible */
-[data-testid="collapsedControl"],
+/* ── Sidebar toggle — fixed on left edge when collapsed ── */
 [data-testid="stSidebarCollapsedControl"]{
+  position:fixed!important;
+  left:0!important; top:50%!important;
+  transform:translateY(-50%)!important;
+  z-index:99999!important;
   display:flex!important;
   visibility:visible!important;
+  opacity:1!important;
   background:var(--bg2)!important;
-  border:1px solid var(--border)!important;
-  border-radius:0 var(--radius) var(--radius) 0!important;}
-[data-testid="collapsedControl"] svg,
-[data-testid="stSidebarCollapsedControl"] svg{fill:var(--accent)!important;}
+  border:1px solid var(--border2)!important;
+  border-left:none!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  padding:10px 6px!important;
+  box-shadow:3px 0 12px rgba(0,0,0,0.5)!important;
+  cursor:pointer!important;}
+[data-testid="stSidebarCollapsedControl"]:hover{
+  background:var(--bg3)!important;
+  border-color:var(--accent)!important;}
+[data-testid="stSidebarCollapsedControl"] svg,
+[data-testid="stSidebarCollapsedControl"] button svg{
+  fill:var(--accent)!important; stroke:var(--accent)!important;}
+[data-testid="collapsedControl"]{
+  position:fixed!important;
+  left:0!important; top:50%!important;
+  transform:translateY(-50%)!important;
+  z-index:99999!important;
+  display:flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  background:var(--bg2)!important;
+  border:1px solid var(--border2)!important;
+  border-left:none!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  padding:10px 6px!important;
+  box-shadow:3px 0 12px rgba(0,0,0,0.5)!important;
+  cursor:pointer!important;}
+[data-testid="collapsedControl"]:hover{
+  background:var(--bg3)!important; border-color:var(--accent)!important;}
+[data-testid="collapsedControl"] svg{fill:var(--accent)!important;}
 h1,h2,h3{color:var(--accent)!important;font-weight:800!important;}
 hr{border:none!important;border-top:1px solid var(--border)!important;margin:14px 0!important;}
-/* Tabs — comprehensive selectors for current Streamlit versions */
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"]{gap:4px!important;border-bottom:2px solid var(--border)!important;background:transparent!important;}
 .stTabs [data-baseweb="tab"]{color:var(--txt2)!important;font-size:13px!important;
   font-weight:600!important;padding:10px 18px!important;background:transparent!important;}
@@ -1043,15 +1074,15 @@ def render_news_st(ticker, articles):
         else: bdr="#1e3a5f"; lbl=""
         age_note="" if age_days<=365 else f" · <span style='color:#f0c040'>⏰ {age_days//365}y ago</span>"
         snip_html=f"<br><span style='color:#888;font-size:10px'>{snip[:180]}…</span>" if snip and sev>0 else ""
+        lbl_html = f" · <span style='color:{bdr};font-weight:bold'>{lbl}</span>" if lbl else ""
         st.markdown(
             f"<div style='border-left:3px solid {bdr};padding:6px 12px;margin-bottom:5px;"
             f"background:#0a1020;border-radius:0 4px 4px 0;opacity:{opacity}'>"
             f"<div style='display:flex;justify-content:space-between;align-items:flex-start'>"
             f"<a href='{link}' target='_blank' style='color:#ddd;text-decoration:none;font-size:12px;flex:1'>{title}</a>"
             f"<span style='color:#555;font-size:10px;white-space:nowrap;margin-left:8px'>{src}</span></div>"
-            f"<div style='color:#555;font-size:10px;margin-top:2px'>{date_s}{age_note}"
-            f"{' · <span style=\"color:'+bdr+';font-weight:bold\">'+lbl+'</span>' if lbl else ''}"
-            f"</div>{snip_html}</div>",
+            f"<div style='color:#555;font-size:10px;margin-top:2px'>{date_s}{age_note}{lbl_html}</div>"
+            f"{snip_html}</div>",
             unsafe_allow_html=True
         )
 
