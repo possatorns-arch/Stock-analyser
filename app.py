@@ -497,9 +497,9 @@ let priceScale = '{price_scale}';
 let showCandle = {show_candle};
 
 const W = window.innerWidth;
-const PH = Math.round(W * 0.52);  // price pane 52%
-const RH = Math.round(W * 0.18);  // rsi pane  18%
-const VH = Math.round(W * 0.15);  // vol pane  15%
+const PH = 420;
+const RH = 140;
+const VH = 110;
 
 document.getElementById('chart-price').style.height = PH+'px';
 document.getElementById('chart-rsi').style.height   = RH+'px';
@@ -634,7 +634,7 @@ setTimeout(() => {{
 </script>
 </body></html>"""
 
-    total_h = PH + RH + VH + 60  # +60 for header/legend/buttons
+    total_h = 420 + 140 + 110 + 80  # price + rsi + vol + header/legend/buttons
     return html, total_h + 20
 
 
