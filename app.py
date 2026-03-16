@@ -9,6 +9,12 @@ import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
+try:
+    import plotly.graph_objects as go
+    import plotly.subplots as _psp
+    HAS_PLOTLY = True
+except ImportError:
+    HAS_PLOTLY = False
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -77,6 +83,14 @@ span[data-baseweb="tag"]{background:rgba(0,200,248,0.15)!important;border:1px so
 .stProgress>div>div>div{background:linear-gradient(90deg,var(--accent),var(--green))!important;}
 div[data-testid="metric-container"]{background:var(--bg2)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
 .sidebar-label{color:var(--txt2)!important;font-size:11px!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:1px!important;margin-bottom:6px!important;}
+/* Sector icon buttons */
+div[data-testid="stButton"] button[kind="secondary"]{
+  padding:6px 2px!important;font-size:11px!important;line-height:1.3!important;
+  white-space:pre-wrap!important;text-align:center!important;}
+/* Plotly chart background */
+.js-plotly-plot .plotly .bg{fill:#0b1120!important;}
+.modebar{background:rgba(11,17,32,0.8)!important;}
+.modebar-btn svg{fill:#8ba8cc!important;}
 </style>""", unsafe_allow_html=True)
 
 # ─── Universe ──────────────────────────────────────────────────────────────────
@@ -118,6 +132,35 @@ SECTOR_MAP = {
     "Industrial":   ["SCC","SCGP","IVL","DELTA","HANA","KCE","TASCO","SMPC"],
     "Transport":    ["AOT","BTS","BEM","AAV","BA","RCL","PRM","SJWD"],
     "Media/Leisure":["PLANB","VGI","MINT","CENTEL","ERW","M","JMART","RS","BEC","MONO"],
+}
+
+# Sector icon buttons for sidebar (emoji + label)
+SECTOR_ICONS = {
+    "All":          ("🌐","All"),
+    "Banking":      ("🏦","Banking"),
+    "Finance":      ("💳","Finance"),
+    "Energy":       ("⛽","Energy"),
+    "Tech/Telecom": ("📡","Tech"),
+    "Property":     ("🏗","Property"),
+    "Healthcare":   ("💊","Health"),
+    "Commerce":     ("🛒","Commerce"),
+    "Food":         ("🍗","Food"),
+    "Industrial":   ("🔧","Industrial"),
+    "Transport":    ("✈️","Transport"),
+    "Media/Leisure":("🎬","Media"),
+}
+
+# MAI sector mapping
+MAI_SECTOR_MAP = {
+    "Tech":     ["ADVICE","DITTO","FORTH","MFEC","NETBAY","NEO","PLANET","SKR"],
+    "Finance":  ["ASK","GCAP","SGC","THRE"],
+    "Property": ["A5","CHEWA","MORE","SCGD"],
+    "Energy":   ["BBGI","EPG","SSP","TPCH"],
+    "Healthcare":["SPA","VIH"],
+    "Commerce": ["KAMART","MASTER","MBK"],
+    "Food":     ["PM","RBF"],
+    "Media":    ["BEC","MONO","RS"],
+    "Other":    ["SMPC"],
 }
 
 def to_yf(sym): return sym + ".BK"
@@ -317,54 +360,87 @@ def fetch_all(ticker):
 # ─── 1. Price chart ──────────────────────────────────────────────────────────────
 EMA_W=[25,75,200]; EMA_C=['deeppink','limegreen','grey']; EMA_L=['EMA 25','EMA 75','EMA 200']
 
-def make_price_chart(ticker, start):
+def make_price_chart_plotly(ticker, start):
+    """Interactive Plotly chart: candlestick / OHLC + RSI + Volume with zoom/pan."""
     d=fetch_all(ticker); df=ts_filter(d['price'],start)
-    fig=plt.figure(figsize=(14,5.5),facecolor='#0d0d0d')
-    if df.empty:
-        plt.text(0.5,0.5,f"No price data — {ticker}",ha='center',va='center',color='white',transform=fig.transFigure,fontsize=14)
-        return fig
-    gs=gridspec.GridSpec(3,1,figure=fig,hspace=0,height_ratios=[3.0,0.9,0.7])
-    ax_p=fig.add_subplot(gs[0]); ax_r=fig.add_subplot(gs[1]); ax_v=fig.add_subplot(gs[2])
-    close=df['Close']; dates=close.index; n_days=len(df)
     dy=trailing_div_yield(d['divs'],d['price'])
-    ax_p.plot(dates,close,lw=1.8,color='white',zorder=3)
-    for w,c,l in zip(EMA_W,EMA_C,EMA_L): ax_p.plot(dates,ema(close,w),lw=1.1,color=c,alpha=0.85,label=l,zorder=2)
-    e25=ema(close,25)
-    ax_p.fill_between(dates,close,e25,where=(close>=e25),alpha=0.08,color='limegreen')
-    ax_p.fill_between(dates,close,e25,where=(close<e25),alpha=0.08,color='deeppink')
-    style_ax(ax_p); ax_p.set_ylabel('THB',fontsize=9,color='#aaa')
-    ax_p.set_xlim(dates[0],dates[-1])
-    ax_p.set_title(ticker,fontsize=13,fontweight='bold',color='white',loc='left',pad=6)
-    ep=close.iloc[-1]
-    ax_p.annotate(f"▼ from MAX  {(ep-close.max())/close.max()*100:.1f}%",xy=(0.01,0.96),xycoords='axes fraction',fontsize=8.5,color='#ff4d6d',va='top',fontfamily='monospace')
-    ax_p.annotate(f"▲ from MIN  +{(ep-close.min())/close.min()*100:.1f}%",xy=(0.50,0.96),xycoords='axes fraction',fontsize=8.5,color='#4ecca3',va='top',ha='center',fontfamily='monospace')
-    if dy:
-        ax_p.annotate(f"Div: {dy:.2f}%",xy=(0.99,0.96),xycoords='axes fraction',fontsize=8.5,color='#f0c040',va='top',ha='right',fontfamily='monospace',
-                      bbox=dict(boxstyle='round,pad=0.3',facecolor='#1a1a1a',edgecolor='#333',alpha=0.8))
-    ax_p.legend(fontsize=7.5,loc='lower right',facecolor='#1a1a1a',edgecolor='#333',labelcolor='white',framealpha=0.8)
-    plt.setp(ax_p.get_xticklabels(),visible=False)
-    rsi_v=calc_rsi(close); cr=rsi_v.iloc[-1]
+    base=ticker.replace('.BK','')
+
+    if df.empty:
+        fig=go.Figure()
+        fig.add_annotation(text=f"No price data — {ticker}",xref="paper",yref="paper",x=0.5,y=0.5,showarrow=False,font=dict(color="white",size=16))
+        fig.update_layout(paper_bgcolor='#0d0d0d',plot_bgcolor='#0d0d0d',height=450)
+        return fig
+
+    close=df['Close']; dates=close.index
+
+    # ── Build subplots: price | RSI | Volume ──
+    fig=_psp.make_subplots(rows=3,cols=1,shared_xaxes=True,
+        row_heights=[0.60,0.20,0.20],vertical_spacing=0.02,
+        subplot_titles=("","",""))
+
+    # ── Candlestick ──
+    fig.add_trace(go.Candlestick(
+        x=df.index,open=df['Open'],high=df['High'],low=df['Low'],close=df['Close'],
+        name='Price',
+        increasing_line_color='#22d68a',decreasing_line_color='#ff5566',
+        increasing_fillcolor='#22d68a',decreasing_fillcolor='#ff5566',
+        line_width=1),row=1,col=1)
+
+    # ── EMAs ──
+    ema_colors=['#ff69b4','#00e676','#aaaaaa']
+    for w,c,l in zip(EMA_W,ema_colors,EMA_L):
+        ev=close.ewm(span=w).mean()
+        fig.add_trace(go.Scatter(x=dates,y=ev,name=l,line=dict(color=c,width=1.2),opacity=0.85,hoverinfo='skip'),row=1,col=1)
+
+    # ── RSI ──
+    rsi_v=calc_rsi(close)
+    cr=float(rsi_v.iloc[-1])
     rc='#ef5350' if cr>=70 else ('#26c6da' if cr<=30 else '#b0bec5')
-    ax_r.plot(dates,rsi_v,lw=1.2,color=rc,zorder=3)
-    ax_r.axhline(70,color='#ef5350',lw=0.7,ls='--',alpha=0.6); ax_r.axhline(30,color='#26c6da',lw=0.7,ls='--',alpha=0.6)
-    ax_r.axhline(50,color='#444',lw=0.5,ls=':',alpha=0.5)
-    ax_r.fill_between(dates,rsi_v,70,where=(rsi_v>=70),alpha=0.12,color='#ef5350')
-    ax_r.fill_between(dates,rsi_v,30,where=(rsi_v<=30),alpha=0.12,color='#26c6da')
-    style_ax(ax_r); ax_r.set_xlim(dates[0],dates[-1]); ax_r.set_ylim(0,100)
-    ax_r.set_yticks([30,50,70]); ax_r.set_ylabel('RSI',fontsize=8,color='#aaa')
-    ax_r.annotate(f"RSI {cr:.1f}",xy=(0.01,0.85),xycoords='axes fraction',fontsize=7.5,color=rc,va='top',fontfamily='monospace')
-    plt.setp(ax_r.get_xticklabels(),visible=False)
-    vc=np.where(df['Close']>=df['Open'],'#3d9970','#e74c3c')
-    ax_v.bar(dates,df['Volume'],color=vc,alpha=0.7,width=1.2)
-    style_ax(ax_v); ax_v.set_ylabel('Vol',fontsize=7,color='#555')
-    ax_v.yaxis.set_major_formatter(plt.FuncFormatter(lambda x,_: f"{x/1e6:.0f}M" if x>=1e6 else f"{x/1e3:.0f}K"))
-    ax_v.set_xlim(dates[0],dates[-1])
-    if n_days<=365:
-        ax_v.xaxis.set_major_formatter(mdates.DateFormatter("%b '%y")); ax_v.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-    else:
-        ax_v.xaxis.set_major_formatter(mdates.DateFormatter("%Y")); ax_v.xaxis.set_major_locator(mdates.YearLocator())
-    ax_v.tick_params(axis='x',colors='#aaa',labelsize=9)
-    plt.tight_layout(); return fig
+    fig.add_trace(go.Scatter(x=dates,y=rsi_v,name='RSI',line=dict(color=rc,width=1.3),showlegend=False),row=2,col=1)
+    fig.add_hline(y=70,line=dict(color='#ef5350',width=0.8,dash='dash'),row=2,col=1)
+    fig.add_hline(y=30,line=dict(color='#26c6da',width=0.8,dash='dash'),row=2,col=1)
+    fig.add_hline(y=50,line=dict(color='#444',width=0.5,dash='dot'),row=2,col=1)
+    fig.add_hrect(y0=70,y1=100,fillcolor='#ef5350',opacity=0.05,row=2,col=1)
+    fig.add_hrect(y0=0,y1=30,fillcolor='#26c6da',opacity=0.05,row=2,col=1)
+
+    # ── Volume ──
+    vol_colors=['#22d68a' if c>=o else '#ff5566' for c,o in zip(df['Close'],df['Open'])]
+    fig.add_trace(go.Bar(x=dates,y=df['Volume'],name='Volume',marker_color=vol_colors,opacity=0.7,showlegend=False),row=3,col=1)
+
+    # ── Annotations ──
+    ep=float(close.iloc[-1])
+    from_max=(ep-float(close.max()))/float(close.max())*100
+    from_min=(ep-float(close.min()))/float(close.min())*100
+    div_txt=f"  |  Div: {dy:.2f}%" if dy else ""
+    title_txt=f"<b>{base}</b>  ·  {ep:.2f} THB  ·  ▼MAX {from_max:.1f}%  ·  ▲MIN +{from_min:.1f}%{div_txt}  ·  RSI {cr:.1f}"
+
+    # ── Layout ──
+    fig.update_layout(
+        title=dict(text=title_txt,font=dict(color='#dce9ff',size=13),x=0),
+        paper_bgcolor='#0b1120',plot_bgcolor='#0d0d0d',
+        font=dict(color='#8ba8cc',size=11),
+        height=560,
+        legend=dict(orientation='h',yanchor='bottom',y=1.01,xanchor='right',x=1,
+                    bgcolor='rgba(11,17,32,0.8)',bordercolor='#1e3358',font=dict(size=10)),
+        margin=dict(l=50,r=20,t=50,b=10),
+        xaxis_rangeslider_visible=False,
+        hovermode='x unified',
+        dragmode='zoom',
+    )
+    # Axis styling
+    ax_style=dict(gridcolor='#1a1a2e',gridwidth=0.5,zeroline=False,
+                  showspikes=True,spikecolor='#2a4570',spikethickness=1,
+                  tickfont=dict(size=10))
+    fig.update_xaxes(**ax_style)
+    fig.update_yaxes(**ax_style)
+    fig.update_yaxes(title_text="THB",row=1,col=1)
+    fig.update_yaxes(title_text="RSI",range=[0,100],row=2,col=1)
+    fig.update_yaxes(title_text="Vol",row=3,col=1)
+    # RSI y-ticks
+    fig.update_yaxes(tickvals=[30,50,70],row=2,col=1)
+
+    return fig
 
 # ─── 2. Financial tables ────────────────────────────────────────────────────────
 def _auto_scale(df):
@@ -375,25 +451,133 @@ def _auto_scale(df):
     except: pass
     return 1.0,"THB"
 
+# Row importance tiers: 'star' = most critical, 'key' = important, '' = standard
+_ROW_TIERS = {
+    # Income statement key rows
+    'Total Revenue':         'star',
+    'Gross Profit':          'star',
+    'Operating Income':      'star',
+    'Net Income':            'star',
+    'EBITDA':                'key',
+    'Gross Profit Ratio':    'key',
+    'Operating Margin':      'key',
+    'Net Income Ratio':      'key',
+    'Cost Of Revenue':       'key',
+    'Total Expenses':        'key',
+    'Interest Expense':      'key',
+    'Tax Provision':         '',
+    'Diluted EPS':           'key',
+    # Balance sheet key rows
+    'Total Assets':          'star',
+    'Total Liabilities Net Minority Interest': 'star',
+    'Stockholders Equity':   'star',
+    'Total Equity Gross Minority Interest': 'star',
+    'Total Debt':            'key',
+    'Net Debt':              'key',
+    'Cash And Cash Equivalents': 'key',
+    'Current Assets':        'key',
+    'Current Liabilities':   'key',
+    'Working Capital':       'key',
+    'Total Capitalization':  '',
+    # Cash flow key rows
+    'Operating Cash Flow':   'star',
+    'Cash Flow From Continuing Operating Activities': 'star',
+    'Capital Expenditure':   'key',
+    'Free Cash Flow':        'star',
+    'Investing Cash Flow':   'key',
+    'Financing Cash Flow':   'key',
+    'Dividends Paid':        'key',
+    'Repurchase Of Capital Stock': '',
+    'Changes In Cash':       '',
+}
+
+# Row groups for visual separation within tables
+_ROW_GROUPS = {
+    'income': {
+        '📈 Revenue & Profitability': ['Total Revenue','Gross Profit','Operating Income','Net Income','EBITDA','Diluted EPS'],
+        '📊 Margins & Ratios':        ['Gross Profit Ratio','Operating Margin','Net Income Ratio'],
+        '💸 Costs & Expenses':        ['Cost Of Revenue','Total Expenses','Selling General And Administration','Research And Development','Interest Expense','Tax Provision'],
+    },
+    'balance': {
+        '🏦 Asset Base':              ['Total Assets','Cash And Cash Equivalents','Net Receivables','Inventory','Current Assets','Net PPE'],
+        '⚖️ Liabilities & Equity':   ['Current Liabilities','Total Debt','Long Term Debt','Total Liabilities Net Minority Interest','Stockholders Equity','Total Equity Gross Minority Interest'],
+        '📐 Working Capital':         ['Working Capital','Net Debt','Total Capitalization'],
+    },
+    'cashflow': {
+        '💰 Operating Cash':          ['Operating Cash Flow','Cash Flow From Continuing Operating Activities'],
+        '🏗 Investing':               ['Capital Expenditure','Investing Cash Flow','Free Cash Flow'],
+        '🏦 Financing':               ['Financing Cash Flow','Dividends Paid','Repurchase Of Capital Stock','Issuance Of Debt','Repayment Of Debt'],
+        '📊 Net Change':              ['Changes In Cash'],
+    },
+}
+
+def _detect_table_type(title):
+    t=title.lower()
+    if 'income' in t or 'profit' in t: return 'income'
+    if 'balance' in t or 'sheet' in t: return 'balance'
+    if 'cash' in t or 'flow' in t:     return 'cashflow'
+    return ''
+
 def _df_to_html(df,title,max_years=10):
     if df is None or df.empty: return f"<p style='color:#555;font-style:italic'>No data for {title}</p>"
     cols=sorted(df.columns)[-max_years:]; sub=df[cols].copy(); col_lbs=[str(c)[:4] for c in cols]
     scale,ulabel=_auto_scale(sub)
-    hdr="".join(f"<th style='padding:6px 12px;color:#00d4ff;text-align:right;background:#0e1628;border-bottom:2px solid #1e3a5f;font-size:11px'>{y}</th>" for y in col_lbs)
+    table_type=_detect_table_type(title)
+    groups=_ROW_GROUPS.get(table_type,{})
+
+    # Build ordered row list: grouped rows first, then remainder
+    ordered_rows=[]
+    used=set()
+    if groups:
+        for grp_label,grp_keys in groups.items():
+            grp_rows=[(rn,rd) for rn,rd in sub.iterrows() if str(rn) in grp_keys]
+            if grp_rows: ordered_rows.append(('group',grp_label,grp_rows)); [used.add(str(rn)) for rn,_ in grp_rows]
+        remainder=[(rn,rd) for rn,rd in sub.iterrows() if str(rn) not in used]
+        if remainder: ordered_rows.append(('group','📋 Other',remainder))
+    else:
+        ordered_rows.append(('group','',list(sub.iterrows())))
+
+    hdr="".join(f"<th style='padding:8px 14px;color:#00c8f8;text-align:right;background:#0b1628;border-bottom:2px solid #1e3a5f;font-size:12px;font-weight:700;letter-spacing:0.3px'>{y}</th>" for y in col_lbs)
+
     rows=""
-    for i,(rn,rd) in enumerate(sub.iterrows()):
-        bg="#0e1830" if i%2==0 else "#111e38"; cells=""
-        for col in cols:
-            try:
-                v=float(rd[col]); txt="—" if pd.isna(v) else f"{v/scale:,.2f}"
-                clr="#4a6480" if pd.isna(v) else ("#ff7a85" if v<0 else "#5ef0aa")
-            except: txt,clr="—","#555"
-            cells+=(f"<td style='padding:4px 12px;text-align:right;color:{clr};font-size:11px;font-family:monospace;border-bottom:1px solid #13213a'>{txt}</td>")
-        rows+=(f"<tr style='background:{bg}'><td style='padding:4px 8px;color:#ccc;font-size:11px;border-bottom:1px solid #13213a;white-space:nowrap'>{str(rn)[:55]}</td>{cells}</tr>")
-    return (f"<div style='margin:12px 0'><div style='color:#00d4ff;font-size:13px;font-weight:bold;margin-bottom:4px'>{title}"
-            f" <span style='color:#555;font-size:10px;font-weight:normal'>({ulabel})</span></div>"
-            f"<div style='overflow-x:auto'><table style='border-collapse:collapse;width:100%'>"
-            f"<thead><tr><th style='padding:6px 8px;color:#aaa;text-align:left;background:#0e1628;border-bottom:2px solid #1e3a5f;font-size:11px'>Line Item</th>{hdr}</tr></thead>"
+    for grp_type,grp_label,grp_data in ordered_rows:
+        if grp_label:
+            rows+=(f"<tr><td colspan='{len(cols)+1}' style='padding:10px 8px 4px;color:#00c8f8;font-size:11px;"
+                   f"font-weight:700;text-transform:uppercase;letter-spacing:0.8px;"
+                   f"background:#080f1e;border-top:1px solid #1e3358;border-bottom:1px solid #1e3358'>"
+                   f"{grp_label}</td></tr>")
+        for rn,rd in grp_data:
+            rn_str=str(rn)
+            tier=_ROW_TIERS.get(rn_str,'')
+            if tier=='star':
+                row_bg="#0d1e38"; row_border="2px solid #1e4a6e"; label_color="#e8f4ff"; label_weight="700"; label_size="13px"
+            elif tier=='key':
+                row_bg="#0a1628"; row_border="1px solid #152235"; label_color="#b0c8e8"; label_weight="600"; label_size="12px"
+            else:
+                row_bg="#080e1c"; row_border="1px solid #0e1a28"; label_color="#5a7090"; label_weight="400"; label_size="11px"
+            cells=""
+            for col in cols:
+                try:
+                    v=float(rd[col]); txt="—" if pd.isna(v) else f"{v/scale:,.2f}"
+                    if pd.isna(v): clr="#334"
+                    elif tier=='star': clr="#ff7a85" if v<0 else "#5ef0aa"
+                    elif tier=='key':  clr="#e05070" if v<0 else "#3acc80"
+                    else:              clr="#4a6480" if v<0 else "#2a6048"
+                    cell_size="13px" if tier=='star' else ("12px" if tier=='key' else "11px")
+                    cell_weight="700" if tier=='star' else ("600" if tier=='key' else "400")
+                except: txt,clr,cell_size,cell_weight="—","#334","11px","400"
+                cells+=(f"<td style='padding:6px 14px;text-align:right;color:{clr};font-size:{cell_size};"
+                        f"font-family:monospace;font-weight:{cell_weight};border-bottom:{row_border}'>{txt}</td>")
+            rows+=(f"<tr style='background:{row_bg}'>"
+                   f"<td style='padding:6px 10px;color:{label_color};font-size:{label_size};font-weight:{label_weight};"
+                   f"border-bottom:{row_border};white-space:nowrap;max-width:280px'>{rn_str[:60]}</td>{cells}</tr>")
+
+    return (f"<div style='margin:16px 0'>"
+            f"<div style='color:#00c8f8;font-size:15px;font-weight:700;margin-bottom:8px;letter-spacing:-0.3px'>{title}"
+            f" <span style='color:#2a4060;font-size:11px;font-weight:400'>({ulabel})</span></div>"
+            f"<div style='overflow-x:auto;border-radius:8px;border:1px solid #1e3358'>"
+            f"<table style='border-collapse:collapse;width:100%'>"
+            f"<thead><tr style='background:#080f1e'><th style='padding:8px 10px;color:#4a6480;text-align:left;border-bottom:2px solid #1e3a5f;font-size:12px;font-weight:700'>Line Item</th>{hdr}</tr></thead>"
             f"<tbody>{rows}</tbody></table></div></div>")
 
 
@@ -1380,70 +1564,204 @@ def show_screener_tab():
 
 # ─── Main ────────────────────────────────────────────────────────────────────────
 def main():
+    # ── Init session state ──────────────────────────────────────────────────────
+    if 'sb_sec' not in st.session_state: st.session_state['sb_sec'] = 'All'
+    if 'mai_sec' not in st.session_state: st.session_state['mai_sec'] = 'All'
+
     with st.sidebar:
-        st.markdown("<div style='padding:4px 0 14px'><div style='color:#00d4ff;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
+        st.markdown("<div style='padding:4px 0 12px'>"
+                    "<div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
                     "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition · Sector-Adjusted</div></div>",unsafe_allow_html=True)
+
+        # ── Date range ──────────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'>📅 Chart Start Date</div>",unsafe_allow_html=True)
         c1,c2=st.columns([3,2])
         with c1: start_year=st.selectbox("Year",[str(y) for y in range(2015,2026)],index=6,key="sy",label_visibility="collapsed")
         with c2: start_month=st.selectbox("Month",[f"{m:02d}" for m in range(1,13)],index=0,key="sm",label_visibility="collapsed")
         start=f"{start_year}-{start_month}-01"
         st.markdown("<hr>",unsafe_allow_html=True)
-        st.markdown("<div class='sidebar-label'><span style='color:#00d4ff'>●</span> SET100</div>",unsafe_allow_html=True)
-        sector_pick=st.selectbox("Quick sector",["All"]+sorted(SECTOR_MAP.keys()),key="sb_sec",label_visibility="collapsed")
-        default_set=[t for t in SET100 if t in set(SECTOR_MAP.get(sector_pick,[]))] if sector_pick!="All" else []
-        set_sel=st.multiselect("SET100 tickers",SET100,default=default_set,placeholder="Type or scroll to pick…",key="set_ms",label_visibility="collapsed")
+
+        # ── SET100 section ──────────────────────────────────────────────────────
+        st.markdown("<div class='sidebar-label'><span style='color:#00c8f8'>●</span> SET100</div>",unsafe_allow_html=True)
+
+        # Sector icon grid
+        sector_keys=['All']+sorted(SECTOR_MAP.keys())
+        cols_per_row=4
+        active_sec=st.session_state.get('sb_sec','All')
+        # Render icon buttons in rows
+        for row_start in range(0,len(sector_keys),cols_per_row):
+            row_keys=sector_keys[row_start:row_start+cols_per_row]
+            btn_cols=st.columns(len(row_keys))
+            for ci,sk in enumerate(row_keys):
+                ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:6]))
+                is_active=(sk==active_sec)
+                btn_style = ("background:#0e2850;border:1px solid #00c8f8;color:#00c8f8" if is_active
+                             else "background:#111a2e;border:1px solid #1e3358;color:#5a7090")
+                if btn_cols[ci].button(ico+"\n"+lbl,key=f"sec_btn_{sk}",
+                                       help=f"Filter to {sk}",use_container_width=True):
+                    st.session_state['sb_sec'] = sk if sk!=active_sec else 'All'
+                    # Clear selection when sector changes
+                    if 'set_ms' in st.session_state: del st.session_state['set_ms']
+                    st.rerun()
+
+        # Only show tickers from selected sector
+        active_sec=st.session_state.get('sb_sec','All')
+        if active_sec=='All':
+            available_set100=SET100
+            ms_placeholder="Type or pick any SET100 stock…"
+        else:
+            available_set100=[t for t in SECTOR_MAP.get(active_sec,[]) if t in SET100]
+            ms_placeholder=f"Pick from {active_sec} ({len(available_set100)} stocks)…"
+
+        set_sel=st.multiselect("SET100 tickers",available_set100,
+                               placeholder=ms_placeholder,key="set_ms",label_visibility="collapsed")
         st.markdown("<hr>",unsafe_allow_html=True)
+
+        # ── MAI section ─────────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'><span style='color:#4ecca3'>●</span> MAI</div>",unsafe_allow_html=True)
-        mai_sel=st.multiselect("MAI tickers",MAI_TICKERS,placeholder="Type or scroll to pick…",key="mai_ms",label_visibility="collapsed")
+
+        # MAI sector filter
+        mai_sec_keys=['All']+sorted(MAI_SECTOR_MAP.keys())
+        active_mai=st.session_state.get('mai_sec','All')
+        mai_btn_cols=st.columns(4)
+        for ci,sk in enumerate(mai_sec_keys[:4]):
+            ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:6]))
+            is_active=(sk==active_mai)
+            if mai_btn_cols[ci].button(ico+"\n"+lbl,key=f"mai_btn_{sk}",
+                                       help=f"Filter MAI to {sk}",use_container_width=True):
+                st.session_state['mai_sec']=sk if sk!=active_mai else 'All'
+                if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
+                st.rerun()
+
+        active_mai=st.session_state.get('mai_sec','All')
+        if active_mai=='All':
+            available_mai=MAI_TICKERS
+            mai_placeholder="Type or pick any MAI stock…"
+        else:
+            available_mai=[t for t in MAI_SECTOR_MAP.get(active_mai,[]) if t in MAI_TICKERS]
+            mai_placeholder=f"Pick from {active_mai} MAI ({len(available_mai)})…"
+
+        mai_sel=st.multiselect("MAI tickers",available_mai,
+                               placeholder=mai_placeholder,key="mai_ms",label_visibility="collapsed")
         st.markdown("<hr>",unsafe_allow_html=True)
+
+        # ── DR / ETF section ─────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'><span style='color:#f0c040'>●</span> DR / ETF</div>",unsafe_allow_html=True)
         dr_sel=st.multiselect("DR tickers",DR_TICKERS,placeholder="Pick DR / ETF…",key="dr_ms",label_visibility="collapsed")
+
         selected_base=set_sel+mai_sel+dr_sel; selected=[to_yf(t) for t in selected_base]
+
+        # ── Selection summary pill ───────────────────────────────────────────────
         if selected_base:
             names_preview=", ".join(selected_base[:6])+("…" if len(selected_base)>6 else "")
-            st.markdown(f"<div style='background:#080f1e;border:1px solid #1a2e48;border-radius:6px;padding:8px 12px;margin-top:4px'>"
+            st.markdown(f"<div style='background:#080f1e;border:1px solid #1a2e48;border-radius:6px;"
+                        f"padding:8px 12px;margin-top:4px'>"
                         f"<span style='color:#4ecca3;font-weight:700'>{len(selected_base)} selected</span>"
                         f"<span style='color:#2a4060;font-size:11px'> · {names_preview}</span></div>",unsafe_allow_html=True)
+
         st.markdown("<hr>",unsafe_allow_html=True)
-        if st.button("🗑 Clear cache",use_container_width=True,help="Force-refresh all data"):
-            st.cache_data.clear(); st.rerun()
+        # Two buttons: Clear Selection + Refresh Data
+        bc1,bc2=st.columns(2)
+        with bc1:
+            if st.button("🗑 Clear Selection",use_container_width=True,help="Reset all stock picks"):
+                for k in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec']:
+                    if k in st.session_state: del st.session_state[k]
+                st.rerun()
+        with bc2:
+            if st.button("🔄 Refresh Data",use_container_width=True,help="Force-reload from Yahoo Finance"):
+                st.cache_data.clear(); st.rerun()
 
     TABS=["🔍 Screener","📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Score","📰 News"]
     tabs=st.tabs(TABS)
     def _need_selection():
         st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:36px;text-align:center;margin-top:20px'>"
-                    "<div style='font-size:36px'>←</div><div style='color:#00d4ff;font-size:16px;margin:10px 0 6px;font-weight:600'>Pick a stock in the sidebar</div>"
-                    "<div style='color:#2a4060;font-size:13px'>Use the SET100 / MAI / DR selectors on the left</div></div>",unsafe_allow_html=True)
+                    "<div style='font-size:36px'>←</div><div style='color:#00c8f8;font-size:16px;margin:10px 0 6px;font-weight:600'>Pick a stock in the sidebar</div>"
+                    "<div style='color:#2a4060;font-size:13px'>Use the sector icons → stock list on the left</div></div>",unsafe_allow_html=True)
+
     with tabs[0]: show_screener_tab()
+
+    # ── Price tab ──────────────────────────────────────────────────────────────
     with tabs[1]:
         if not selected: _need_selection()
         else:
+            # Period + style controls
+            pc1,pc2,pc3=st.columns([3,3,4])
+            with pc1:
+                period_opts={"3M":"3mo","6M":"6mo","1Y":"1y","2Y":"2y","5Y":"5y","Max":"max"}
+                period_choice=st.selectbox("Period",list(period_opts.keys()),index=2,key="price_period",label_visibility="visible")
+            with pc2:
+                chart_type=st.selectbox("Chart type",["Candlestick","Line"],index=0,key="chart_type")
+            with pc3:
+                log_scale=st.checkbox("Log scale Y-axis",value=False,key="log_scale")
+
             for ticker in selected:
-                with st.spinner(f"Loading {ticker}…"): fig=make_price_chart(ticker,start); st.pyplot(fig); plt.close(fig)
+                with st.spinner(f"Loading {ticker}…"):
+                    if HAS_PLOTLY:
+                        d=fetch_all(ticker)
+                        # Re-filter by chosen period
+                        price_df=d['price']
+                        period_map={"3mo":90,"6mo":180,"1y":365,"2y":730,"5y":1825,"max":99999}
+                        ndays=period_map.get(period_opts[period_choice],365)
+                        if not price_df.empty:
+                            cutoff=price_df.index[-1]-pd.Timedelta(days=ndays)
+                            price_df=price_df[price_df.index>=cutoff]
+                        # Build chart
+                        d_tmp=dict(d,price=price_df)
+                        fig=make_price_chart_plotly(ticker,str(price_df.index[0].date()) if not price_df.empty else start)
+                        # Apply style options
+                        if log_scale:
+                            fig.update_yaxes(type='log',row=1,col=1)
+                        # Switch to line if requested
+                        if chart_type=="Line":
+                            for trace in fig.data:
+                                if hasattr(trace,'type') and trace.type=='candlestick':
+                                    trace.visible=False
+                            close_vals=price_df['Close'] if not price_df.empty else pd.Series()
+                            fig.add_trace(go.Scatter(x=close_vals.index,y=close_vals,
+                                                     name='Close',line=dict(color='#00c8f8',width=2)),row=1,col=1)
+                        st.plotly_chart(fig,use_container_width=True,config={
+                            'displayModeBar':True,
+                            'modeBarButtonsToAdd':['drawline','drawopenpath','eraseshape'],
+                            'scrollZoom':True})
+                    else:
+                        fig=make_price_chart(ticker,start); st.pyplot(fig,use_container_width=True); plt.close(fig)
+
+    # ── Financials tab ─────────────────────────────────────────────────────────
     with tabs[2]:
         if not selected: _need_selection()
         else:
             for ticker in selected:
                 base=ticker.replace('.BK',''); name=TICKER_NAMES.get(base,"")
-                st.markdown(f"<div style='display:flex;align-items:baseline;gap:10px;margin:8px 0 4px'>"
-                            f"<span style='color:#00d4ff;font-size:16px;font-weight:700'>{base}</span>"
-                            f"<span style='color:#3a5070;font-size:13px'>{name}</span></div>",unsafe_allow_html=True)
+                sg,prof=get_sector_profile(base); sc=prof.get('color','#80cbc4')
+                st.markdown(f"<div style='display:flex;align-items:center;gap:12px;margin:12px 0 8px'>"
+                            f"<span style='color:#00c8f8;font-size:18px;font-weight:700'>{base}</span>"
+                            f"<span style='color:#3a5070;font-size:14px'>{name}</span>"
+                            f"<span style='background:rgba(0,0,0,0.3);border:1px solid {sc};border-radius:10px;"
+                            f"padding:2px 9px;color:{sc};font-size:11px;font-weight:700'>{prof['label']}</span></div>",
+                            unsafe_allow_html=True)
                 d=fetch_all(ticker)
-                for title,df in [("Income Statement",d['income']),("Balance Sheet",d['balance']),("Cash Flow",d['cashflow'])]:
+                # Sector note for financial institutions
+                if sg in ('bank','finance'):
+                    st.info(f"**{prof['label']} note:** {prof['note']}")
+                for title,df in [("📈 Income Statement",d['income']),
+                                  ("⚖️ Balance Sheet",d['balance']),
+                                  ("💵 Cash Flow Statement",d['cashflow'])]:
                     st.markdown(_df_to_html(df,title),unsafe_allow_html=True)
                 st.markdown("<hr>",unsafe_allow_html=True)
+
     with tabs[3]:
         if not selected: _need_selection()
         else:
             for ticker in selected:
-                with st.spinner(f"Plotting {ticker}…"): fig=make_fundamental_chart(ticker); st.pyplot(fig); plt.close(fig)
+                with st.spinner(f"Plotting {ticker}…"): fig=make_fundamental_chart(ticker); st.pyplot(fig,use_container_width=True); plt.close(fig)
+
     with tabs[4]:
         if not selected: _need_selection()
         else:
             for ticker in selected:
                 with st.spinner(f"Scoring {ticker}…"): render_vi_scorecard_st(compute_vi_scorecard(ticker))
                 st.markdown("<hr>",unsafe_allow_html=True)
+
     with tabs[5]:
         if not selected: _need_selection()
         else:
