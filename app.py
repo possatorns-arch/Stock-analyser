@@ -25,13 +25,19 @@ st.set_page_config(
     page_icon="🏦", layout="wide",
     initial_sidebar_state="expanded"
 )
-st.markdown(
-    '<link rel="preconnect" href="https://fonts.googleapis.com">'
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-    '<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600'
-    '&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">',
-    unsafe_allow_html=True
-)
+
+# ── Connectivity smoke test — shows error immediately instead of blank screen ──
+@st.cache_data(ttl=3600, show_spinner=False)
+def _check_yfinance():
+    try:
+        tk = yf.Ticker("PTT.BK")
+        px = tk.history(period="5d", timeout=15)
+        if px is not None and not px.empty:
+            return True, f"OK — PTT.BK: {px['Close'].iloc[-1]:.2f}"
+        return False, "Empty data returned — market may be closed or feed blocked"
+    except Exception as e:
+        return False, str(e)[:120]
+
 st.markdown("""
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
@@ -252,7 +258,9 @@ span[data-baseweb="tag"] span { color: var(--txt2) !important; }
 [data-baseweb="select"] svg { color: var(--txt2) !important; }
 [data-baseweb="select"] > div { color: var(--txt) !important; }
 
-/* ══════════════════════════════════════════════════════════════════════════
+</style>""", unsafe_allow_html=True)
+st.markdown("""
+<style>/* ══════════════════════════════════════════════════════════════════════════
    PROGRESS BAR  (screener loading)
    ══════════════════════════════════════════════════════════════════════════ */
 .stProgress > div > div { background: var(--bg3) !important; border-radius: 4px; }
@@ -427,23 +435,51 @@ def style_ax(ax):
 # ─── Data fetch (cached 6h) ─────────────────────────────────────────────────────
 @st.cache_data(ttl=21600, show_spinner=False)
 def fetch_all(ticker):
-    tk = yf.Ticker(ticker)
-    end = pd.Timestamp.now()
+    """Fetch all yfinance data with retry logic for Streamlit Cloud."""
+    import time
     data = dict(ticker=ticker, info={}, price=pd.DataFrame(),
                 income=pd.DataFrame(), balance=pd.DataFrame(),
                 cashflow=pd.DataFrame(), divs=pd.Series(dtype=float))
-    try: data['info']     = tk.info or {}
-    except: pass
-    try: data['price']    = tk.history(interval='1d', start=end-pd.DateOffset(years=10), end=end)
-    except: pass
-    try: data['income']   = tk.income_stmt
-    except: pass
-    try: data['balance']  = tk.balance_sheet
-    except: pass
-    try: data['cashflow'] = tk.cashflow
-    except: pass
-    try: data['divs']     = tk.dividends
-    except: pass
+    for attempt in range(3):
+        try:
+            tk = yf.Ticker(ticker)
+            end = pd.Timestamp.now()
+            # info first — if this times out, skip rather than crash
+            try:
+                info = tk.info or {}
+                data['info'] = info if isinstance(info, dict) else {}
+            except Exception: data['info'] = {}
+            try:
+                px = tk.history(interval='1d',
+                                start=end - pd.DateOffset(years=10), end=end,
+                                timeout=30)
+                if not px.empty: data['price'] = px
+            except Exception: pass
+            try:
+                inc = tk.income_stmt
+                if inc is not None and not (hasattr(inc,'empty') and inc.empty):
+                    data['income'] = inc
+            except Exception: pass
+            try:
+                bal = tk.balance_sheet
+                if bal is not None and not (hasattr(bal,'empty') and bal.empty):
+                    data['balance'] = bal
+            except Exception: pass
+            try:
+                cf = tk.cashflow
+                if cf is not None and not (hasattr(cf,'empty') and cf.empty):
+                    data['cashflow'] = cf
+            except Exception: pass
+            try:
+                dv = tk.dividends
+                if dv is not None and len(dv) > 0:
+                    data['divs'] = dv
+            except Exception: pass
+            break  # success — exit retry loop
+        except Exception:
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # 1s, 2s backoff
+            continue
     return data
 
 # ─── 1. Price chart ──────────────────────────────────────────────────────────────
@@ -1272,9 +1308,12 @@ def compute_quick_score(ticker_yf):
                 "C%":round(sec_sc.get('C',(0,0,0))[2]),"D%":round(sec_sc.get('D',(0,0,0))[2]),
                 "E%":round(sec_sc.get('E',(0,0,0))[2])}
     except Exception as e:
-        return {"Ticker":ticker_yf.replace('.BK',''),"Company":"","VI Score":0,"Verdict":"Error",
+        base = ticker_yf.replace('.BK','')
+        return {"Ticker":base,"Company":TICKER_NAMES.get(base,""),
+                "VI Score":0,"Verdict":"Error",
                 "Rev CAGR%":None,"ROE%":None,"D/E":None,"P/E":None,"Div%":None,
-                "M-Score":None,"FCF+":False,"A%":0,"B%":0,"C%":0,"D%":0,"E%":0}
+                "M-Score":None,"FCF+":False,"A%":0,"B%":0,"C%":0,"D%":0,"E%":0,
+                "_err":str(e)}
 
 def _sc(p):
     return "#22d68a" if p>=72 else ("#f5c842" if p>=55 else "#ff5566")
@@ -1485,11 +1524,17 @@ def show_screener_tab():
 
         bar = st.progress(0)
         results = []
+        errors  = []
         for i, t in enumerate(pool):
             bar.progress((i+1)/len(pool), text=f"Analysing **{t}** · {i+1}/{len(pool)}")
-            results.append(compute_quick_score(to_yf(t)))
+            r = compute_quick_score(to_yf(t))
+            results.append(r)
+            if r.get("Verdict") == "Error":
+                errors.append(t)
         bar.empty()
-        st.success(f"✅ Done — {len(results)} stocks analysed")
+        ok = len(results) - len(errors)
+        st.success(f"✅ Done — {ok}/{len(results)} stocks analysed" +
+                   (f"  ·  ⚠️ {len(errors)} failed ({', '.join(errors[:5])}{'…' if len(errors)>5 else ''})" if errors else ""))
         st.session_state["screener_results"] = results
         st.session_state["screener_meta"] = f"{universe} · {sector_f}"
 
@@ -1584,9 +1629,9 @@ def main():
     # ── Sidebar ──────────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown(
-            "<div style='background:linear-gradient(135deg,#0e2248,#0a1830);"
-            "border:1px solid #2a4570;border-radius:10px;padding:14px 16px;margin-bottom:12px'><"
-            "div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
+            "<div style='background:#0e1a38;border:1px solid #2a4570;"
+            "border-radius:10px;padding:14px 16px;margin-bottom:12px'>"
+            "<div style='color:#00c8f8;font-size:20px;font-weight:800'>🏦 SET Analyser</div>"
             "<div style='color:#5a7898;font-size:11px;margin-top:4px'>Value Investor Edition · H1 2025</div>"
             "</div>",
             unsafe_allow_html=True
@@ -1662,6 +1707,17 @@ def main():
             )
 
         st.markdown("<hr>", unsafe_allow_html=True)
+        _ds_ok, _ds_msg = _check_yfinance()
+        if _ds_ok:
+            st.markdown("<div style='background:rgba(34,214,138,0.1);border:1px solid #22d68a;"
+                        "border-radius:6px;padding:6px 10px;font-size:11px;color:#22d68a;"
+                        "margin-bottom:8px'>🟢 Data feed OK</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(
+                f"<div style='background:rgba(255,85,102,0.1);border:1px solid #ff5566;"
+                f"border-radius:6px;padding:6px 10px;font-size:11px;color:#ff5566;"
+                f"margin-bottom:8px'>🔴 Data issue: {_ds_msg[:60]}</div>",
+                unsafe_allow_html=True)
         if st.button("🗑 Clear cache", use_container_width=True, help="Force-refresh all data"):
             st.cache_data.clear(); st.rerun()
 
@@ -1739,4 +1795,10 @@ def main():
                     render_news_st(ticker, fetch_all_news(ticker))
                 st.markdown("<hr>", unsafe_allow_html=True)
 
-main()
+if __name__ == "__main__" or True:
+    try:
+        main()
+    except Exception as _e:
+        import traceback
+        st.error(f"❌ App error: {_e}")
+        st.code(traceback.format_exc())
