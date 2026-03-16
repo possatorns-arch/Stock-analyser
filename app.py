@@ -667,29 +667,39 @@ cP.subscribeCrosshairMove(p => {{
   }}
 }});
 
-// ── Time range sync ────────────────────────────────────────────────────────────
+// ── Time range sync via logical range (avoids infinite loop) ──────────────────
 let _syncLock = false;
-function syncRange(src) {{
-  return (r) => {{
-    if (_syncLock || !r) return;
+function makeSyncHandler(src) {{
+  return () => {{
+    if (_syncLock) return;
     _syncLock = true;
-    allCharts.filter(c=>c!==src).forEach(c => c.timeScale().setVisibleRange(r));
-    _syncLock = false;
+    try {{
+      const lr = src.timeScale().getVisibleLogicalRange();
+      if (lr) allCharts.filter(c=>c!==src).forEach(c=>c.timeScale().setVisibleLogicalRange(lr));
+    }} finally {{
+      _syncLock = false;
+    }}
   }};
 }}
-allCharts.forEach(c => c.timeScale().subscribeVisibleTimeRangeChange(syncRange(c)));
+allCharts.forEach(c => c.timeScale().subscribeVisibleLogicalRangeChange(makeSyncHandler(c)));
 
 // ── Period buttons ─────────────────────────────────────────────────────────────
 function setRange(days) {{
   document.querySelectorAll('.pb[onclick*="setRange"]').forEach(b=>b.classList.remove('active'));
   event.target.classList.add('active');
   curRange = days;
+  applyRange(days);
+}}
+
+function applyRange(days) {{
   const src = DATA[curInterval].candle;
   if (!src.length) return;
   if (days >= 99999) {{ allCharts.forEach(c=>c.timeScale().fitContent()); return; }}
   const last = src[src.length-1].time;
-  const r = {{from: last - days*86400, to: last + 3600*12}};
-  allCharts.forEach(c => c.timeScale().setVisibleRange(r));
+  const from = last - days*86400;
+  // Use cP as source; sync handler will propagate to others
+  _syncLock = false;
+  cP.timeScale().setVisibleRange({{from, to: last + 86400}});
 }}
 
 // ── Interval buttons ──────────────────────────────────────────────────────────
@@ -702,12 +712,7 @@ function setInterval(iv) {{
 }}
 
 function setRangeSilent(days) {{
-  const src = DATA[curInterval].candle;
-  if (!src.length) return;
-  if (days >= 99999) {{ allCharts.forEach(c=>c.timeScale().fitContent()); return; }}
-  const last = src[src.length-1].time;
-  const r = {{from: last - days*86400, to: last + 3600*12}};
-  allCharts.forEach(c => c.timeScale().setVisibleRange(r));
+  applyRange(days);
 }}
 
 // ── Toggle type / log ─────────────────────────────────────────────────────────
@@ -1085,34 +1090,34 @@ def compute_vi_scorecard(ticker):
         sec_a.append((f'Revenue CAGR (5Y)',f'>{cagr_min}%',
                       f"{cagr:.1f}%" if cagr else 'N/A',
                       cagr is not None and cagr>=cagr_min,
-                      f'Sustained revenue growth signals competitive strength ({prof["label"]} benchmark)'))
+                      'Revenue growing consistently = the business has real demand and pricing power'))
     except: sec_a.append((f'Revenue CAGR (5Y)',f'>{cagr_min}%','N/A',False,''))
 
     gm_min=thr['gross_margin_min']
     if gm_min is None:
         # Banks/finance: gross margin is meaningless (no COGS vs revenue split)
         sec_a.append(('Gross Margin','N/A — use NIM','—',True,
-                      f'{prof["label"]}: use Net Interest Margin from BOT filings instead of gross margin'))
+                      'Banks: use Net Interest Margin (NIM) from filings — gross margin concept does not apply'))
     else:
         gm_med=_med(gm_s)
         sec_a.append((f'Gross Margin (5Y median)',f'>{gm_min}%',
                       f"{gm_med:.1f}%" if gm_med else 'N/A',
                       gm_med is not None and gm_med>=gm_min,
-                      f'>{gm_min}% pricing power threshold for {prof["label"]}'))
+                      f'>{gm_min}% gross margin = strong pricing power and low commodity dependency'))
 
     nm_min=thr['net_margin_min']
     nm_med=_med(nm_s)
     sec_a.append((f'Net Margin (5Y median)',f'>{nm_min}%',
                   f"{nm_med:.1f}%" if nm_med else 'N/A',
                   nm_med is not None and nm_med>=nm_min,
-                  f'Efficiency benchmark for {prof["label"]}'))
+                  'Net margin shows how much of every revenue baht becomes profit after all costs'))
 
     roe_min=thr['roe_min']
     roe_med=_med(roe_s)
     sec_a.append((f'ROE (5Y median)',f'>{roe_min}%',
                   f"{roe_med:.1f}%" if roe_med else 'N/A',
                   roe_med is not None and roe_med>=roe_min,
-                  f'Return on equity benchmark for {prof["label"]}'))
+                  'ROE measures how efficiently the company generates profit from shareholders capital'))
 
     earn_ok=_all_pos(net_income)
     sec_a.append(('Earnings Consistency','All years +',
@@ -1131,24 +1136,24 @@ def compute_vi_scorecard(ticker):
         except: de_str="N/A"
         sec_b.append(('D/E Ratio','Structural (not scored)',
                       f"{de_str} — normal for banks",True,
-                      f'{prof["label"]}: deposits = liabilities → high D/E is regulated capital adequacy, not risk'))
+                      'Banks: deposits are liabilities by design — D/E reflects regulatory capital structure, not over-leverage'))
     else:
         de=_s(total_debt/total_equity) if not total_debt.empty and not total_equity.empty else None
         sec_b.append((f'D/E Ratio',f'<{de_max}×',
                       f"{de:.2f}×" if de is not None else 'N/A',
                       de is not None and de<de_max,
-                      f'Adjusted threshold for {prof["label"]}'))
+                      'Lower debt relative to equity = less financial risk and more resilience in downturns'))
 
     cr_min=thr['cr_min']
     if cr_min is None:
         sec_b.append(('Current Ratio','N/A — deposit-funded','—',True,
-                      f'{prof["label"]}: liquidity managed via asset-liability matching, not current ratio'))
+                      'Banks: liquidity risk managed via asset-liability matching — current ratio does not apply'))
     else:
         crat=_s(curr_assets/curr_liab) if not curr_assets.empty and not curr_liab.empty else None
         sec_b.append((f'Current Ratio',f'>{cr_min}×',
                       f"{crat:.2f}×" if crat is not None else 'N/A',
                       crat is not None and crat>=cr_min,
-                      f'Short-term liquidity buffer (threshold for {prof["label"]})'))
+                      'Current ratio >1 means current assets cover current debts — company can pay short-term bills'))
 
     ic_min=thr['ic_min']
     try:
@@ -1156,7 +1161,7 @@ def compute_vi_scorecard(ticker):
         sec_b.append((f'Interest Coverage',f'>{ic_min}×',
                       f"{ic:.1f}×" if ic else 'N/A',
                       ic is not None and ic>=ic_min,
-                      f'Earnings vs debt service (threshold for {prof["label"]})'))
+                      'Interest coverage shows if operating profit can comfortably service debt — below 2× is danger zone'))
     except: sec_b.append((f'Interest Coverage',f'>{ic_min}×','N/A',False,''))
 
     # FCF mode: all_positive / ocf_positive / avg_3y
@@ -1166,7 +1171,7 @@ def compute_vi_scorecard(ticker):
         sec_b.append(('Operating CF (all years)','Always +',
                       f"✓ Latest: {ocf_v/1e9:.2f}B" if ocf_ok and ocf_v else '✗ Has negative OCF years',
                       ocf_ok,
-                      f'{prof["label"]}: OCF = core business cash; FCF concept differs for financial institutions'))
+                      'For financial firms OCF = core lending cash; negative FCF is normal when growing loan book'))
     elif fcf_mode=='avg_3y':
         try:
             fcf_s=free_cf.sort_index().dropna()
@@ -1177,7 +1182,7 @@ def compute_vi_scorecard(ticker):
                 result['red_flags'].append(('⚠️ Negative Average FCF',
                     f"3Y average FCF = {avg_fcf/1e9:.2f}B. Sustained negative FCF = cash burn, not investment cycle."))
             sec_b.append(('FCF (3Y average)','Avg > 0',lbl_val,ok,
-                          f'{prof["label"]}: single-year FCF lumpy; 3Y average removes capex/project cycle noise'))
+                          'Single-year FCF can be negative during construction — 3Y average smooths project cycles'))
         except: sec_b.append(('FCF (3Y average)','Avg > 0','N/A',False,''))
     else:
         fcf_ok=_all_pos(free_cf); fcf_v=_s(free_cf)
@@ -1272,7 +1277,7 @@ def compute_vi_scorecard(ticker):
     sec_e.append((f'Dividend Yield',f'>{dy_min}%',
                   f"{dy:.2f}%" if dy else 'N/A',
                   (dy or 0)>=dy_min,
-                  f'Dividend benchmark for {prof["label"]}'))
+                  'Dividends confirm real cash profits — companies paying >2% consistently are usually healthy'))
     try:
         per=float(info.get('trailingPE') or info.get('forwardPE'))
         rev2=revenue.sort_index().dropna(); n=min(5,len(rev2)-1)
@@ -1302,7 +1307,7 @@ def compute_vi_scorecard(ticker):
                 sec_f.append(('Net Income Trend (3Y)','Growing',
                               f"{'✓' if ni_trend else '✗'} {ni_3y_ago:.1f}B → {ni_latest:.1f}B",
                               ni_trend,
-                              f'{prof["label"]}: OCF swings with loan origination volume — NI trend is the reliable fraud signal'))
+                              'For financial firms OCF swings with loan volumes — consistent NI growth is the quality signal'))
                 if not ni_trend:
                     result['red_flags'].append(('⚠️ Declining Net Income',
                         f"NI fell from {ni_3y_ago:.1f}B to {ni_latest:.1f}B over 3 years. Investigate loan quality and provisioning."))
@@ -2038,9 +2043,15 @@ def main():
                             f"padding:2px 9px;color:{sc};font-size:11px;font-weight:700'>{prof['label']}</span></div>",
                             unsafe_allow_html=True)
                 d=fetch_all(ticker)
-                # Sector note for financial institutions
+                # Sector note inline (no st.info which renders as [...])
                 if sg in ('bank','finance'):
-                    st.info(f"**{prof['label']} note:** {prof['note']}")
+                    st.markdown(
+                        f"<div style='background:#0a1628;border-left:3px solid {sc};"
+                        f"border-radius:0 6px 6px 0;padding:8px 14px;margin-bottom:12px;"
+                        f"color:#7a9ab8;font-size:12px'>"
+                        f"<span style='color:{sc};font-weight:700'>ℹ {prof["label"]} note: </span>"
+                        f"{prof['note']}</div>",
+                        unsafe_allow_html=True)
                 for title,df in [("📈 Income Statement",d['income']),
                                   ("⚖️ Balance Sheet",d['balance']),
                                   ("💵 Cash Flow Statement",d['cashflow'])]:
