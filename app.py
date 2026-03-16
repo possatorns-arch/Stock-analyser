@@ -362,87 +362,276 @@ def fetch_all(ticker):
 # ─── 1. Price chart ──────────────────────────────────────────────────────────────
 EMA_W=[25,75,200]; EMA_C=['deeppink','limegreen','grey']; EMA_L=['EMA 25','EMA 75','EMA 200']
 
-def make_price_chart_plotly(ticker, start):
-    """Interactive Plotly chart: candlestick / OHLC + RSI + Volume with zoom/pan."""
-    d=fetch_all(ticker); df=ts_filter(d['price'],start)
-    dy=trailing_div_yield(d['divs'],d['price'])
-    base=ticker.replace('.BK','')
-
+def make_tv_chart(ticker, period_days=365, chart_type='Candlestick', log_scale=False):
+    """
+    TradingView Lightweight Charts embedded component.
+    Full zoom/pan/crosshair, period buttons, EMA overlays, RSI, Volume.
+    """
+    import json
+    d = fetch_all(ticker)
+    df = d['price'].copy()
     if df.empty:
-        fig=go.Figure()
-        fig.add_annotation(text=f"No price data — {ticker}",xref="paper",yref="paper",x=0.5,y=0.5,showarrow=False,font=dict(color="white",size=16))
-        fig.update_layout(paper_bgcolor='#0d0d0d',plot_bgcolor='#0d0d0d',height=450)
-        return fig
+        return f"<div style='color:#ef5350;padding:24px'>No price data for {ticker}</div>", 200
 
-    close=df['Close']; dates=close.index
+    # ── Strip timezone, sort ──
+    df.index = strip_tz(df.index)
+    df = df.sort_index()
 
-    # ── Build subplots: price | RSI | Volume ──
-    fig=_psp.make_subplots(rows=3,cols=1,shared_xaxes=True,
-        row_heights=[0.60,0.20,0.20],vertical_spacing=0.02,
-        subplot_titles=("","",""))
+    # ── Apply period filter ──
+    if period_days < 99000:
+        cutoff = df.index[-1] - pd.Timedelta(days=period_days)
+        df = df[df.index >= cutoff]
+    if df.empty:
+        return f"<div style='color:#ef5350;padding:24px'>No data for selected period</div>", 200
 
-    # ── Candlestick ──
-    fig.add_trace(go.Candlestick(
-        x=df.index,open=df['Open'],high=df['High'],low=df['Low'],close=df['Close'],
-        name='Price',
-        increasing_line_color='#22d68a',decreasing_line_color='#ff5566',
-        increasing_fillcolor='#22d68a',decreasing_fillcolor='#ff5566',
-        line_width=1),row=1,col=1)
+    # ── Calc EMA & RSI on full history, then slice ──
+    close_full = d['price'].copy()
+    close_full.index = strip_tz(close_full.index)
+    close_full = close_full['Close'].sort_index()
+    ema25  = close_full.ewm(span=25).mean()
+    ema75  = close_full.ewm(span=75).mean()
+    ema200 = close_full.ewm(span=200).mean()
+    rsi_s  = calc_rsi(close_full)
 
-    # ── EMAs ──
-    ema_colors=['#ff69b4','#00e676','#aaaaaa']
-    for w,c,l in zip(EMA_W,ema_colors,EMA_L):
-        ev=close.ewm(span=w).mean()
-        fig.add_trace(go.Scatter(x=dates,y=ev,name=l,line=dict(color=c,width=1.2),opacity=0.85,hoverinfo='skip'),row=1,col=1)
+    # ── Slice to period ──
+    mask = close_full.index >= df.index[0]
+    def to_tv(series):
+        return [{"time": int(t.timestamp()), "value": round(float(v), 4)}
+                for t, v in zip(series[mask].index, series[mask])
+                if not pd.isna(v)]
+    def to_tv_candle(sub):
+        return [{"time": int(t.timestamp()),
+                 "open":  round(float(r['Open']),  4),
+                 "high":  round(float(r['High']),  4),
+                 "low":   round(float(r['Low']),   4),
+                 "close": round(float(r['Close']), 4)}
+                for t, r in sub.iterrows()
+                if not any(pd.isna(r[c]) for c in ['Open','High','Low','Close'])]
+    def to_tv_vol(sub):
+        return [{"time": int(t.timestamp()),
+                 "value": float(r['Volume']),
+                 "color": "#22d68a55" if r['Close'] >= r['Open'] else "#ff556655"}
+                for t, r in sub.iterrows()
+                if not pd.isna(r['Volume'])]
 
-    # ── RSI ──
-    rsi_v=calc_rsi(close)
-    cr=float(rsi_v.iloc[-1])
-    rc='#ef5350' if cr>=70 else ('#26c6da' if cr<=30 else '#b0bec5')
-    fig.add_trace(go.Scatter(x=dates,y=rsi_v,name='RSI',line=dict(color=rc,width=1.3),showlegend=False),row=2,col=1)
-    fig.add_hline(y=70,line=dict(color='#ef5350',width=0.8,dash='dash'),row=2,col=1)
-    fig.add_hline(y=30,line=dict(color='#26c6da',width=0.8,dash='dash'),row=2,col=1)
-    fig.add_hline(y=50,line=dict(color='#444',width=0.5,dash='dot'),row=2,col=1)
-    fig.add_hrect(y0=70,y1=100,fillcolor='#ef5350',opacity=0.05,row=2,col=1)
-    fig.add_hrect(y0=0,y1=30,fillcolor='#26c6da',opacity=0.05,row=2,col=1)
+    candle_data  = json.dumps(to_tv_candle(df))
+    line_data    = json.dumps(to_tv(d['price'].loc[mask]['Close'] if not d['price'].empty else close_full[mask]))
+    ema25_data   = json.dumps(to_tv(ema25))
+    ema75_data   = json.dumps(to_tv(ema75))
+    ema200_data  = json.dumps(to_tv(ema200))
+    rsi_data     = json.dumps(to_tv(rsi_s))
+    vol_data     = json.dumps(to_tv_vol(df))
 
-    # ── Volume ──
-    vol_colors=['#22d68a' if c>=o else '#ff5566' for c,o in zip(df['Close'],df['Open'])]
-    fig.add_trace(go.Bar(x=dates,y=df['Volume'],name='Volume',marker_color=vol_colors,opacity=0.7,showlegend=False),row=3,col=1)
+    dy   = trailing_div_yield(d['divs'], d['price'])
+    ep   = float(df['Close'].iloc[-1])
+    fmax = (ep - float(df['Close'].max())) / float(df['Close'].max()) * 100
+    fmin = (ep - float(df['Close'].min())) / float(df['Close'].min()) * 100
+    dy_txt = f" · Div {dy:.2f}%" if dy else ""
+    base = ticker.replace('.BK','')
+    title = f"{base} · {ep:.2f} THB · ▼MAX {fmax:.1f}% · ▲MIN +{fmin:.1f}%{dy_txt}"
+    price_scale = "logarithmic" if log_scale else "normal"
+    show_candle = "true" if chart_type == "Candlestick" else "false"
 
-    # ── Annotations ──
-    ep=float(close.iloc[-1])
-    from_max=(ep-float(close.max()))/float(close.max())*100
-    from_min=(ep-float(close.min()))/float(close.min())*100
-    div_txt=f"  |  Div: {dy:.2f}%" if dy else ""
-    title_txt=f"<b>{base}</b>  ·  {ep:.2f} THB  ·  ▼MAX {from_max:.1f}%  ·  ▲MIN +{from_min:.1f}%{div_txt}  ·  RSI {cr:.1f}"
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  * {{ box-sizing:border-box; margin:0; padding:0; }}
+  body {{ background:#0b1120; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden; }}
+  #header {{ padding:8px 14px 4px; color:#dce9ff; font-size:13px; font-weight:600; white-space:nowrap;
+             overflow:hidden; text-overflow:ellipsis; background:#0b1120; }}
+  #legend {{ padding:2px 14px 6px; color:#8ba8cc; font-size:11px; min-height:22px; background:#0b1120; }}
+  #chart-price {{ width:100%; }}
+  #chart-rsi   {{ width:100%; border-top:1px solid #1e3358; }}
+  #chart-vol   {{ width:100%; border-top:1px solid #1e3358; }}
+  .period-bar  {{ display:flex; gap:4px; padding:6px 14px; background:#0b1120; border-top:1px solid #0e1a2e; }}
+  .pb {{ background:#111a2e; border:1px solid #1e3358; color:#5a7090; padding:3px 10px;
+         border-radius:4px; cursor:pointer; font-size:11px; font-weight:600; }}
+  .pb:hover, .pb.active {{ background:#0a1e38; border-color:#00c8f8; color:#00c8f8; }}
+  #ohlc {{ font-size:11px; color:#8ba8cc; }}
+</style>
+</head>
+<body>
+<div id="header">{title}</div>
+<div id="legend"><span id="ohlc"></span></div>
+<div id="chart-price"></div>
+<div id="chart-rsi"></div>
+<div id="chart-vol"></div>
+<div class="period-bar">
+  <button class="pb" onclick="setRange(90)">3M</button>
+  <button class="pb" onclick="setRange(180)">6M</button>
+  <button class="pb active" id="pb_1y" onclick="setRange(365)">1Y</button>
+  <button class="pb" onclick="setRange(730)">2Y</button>
+  <button class="pb" onclick="setRange(1825)">5Y</button>
+  <button class="pb" onclick="setRange(99999)">Max</button>
+  <span style="flex:1"></span>
+  <button class="pb" id="btn_cs" onclick="toggleType()">Line</button>
+  <button class="pb" onclick="toggleLog()">Log</button>
+  <button class="pb" onclick="resetZoom()">⟳ Reset</button>
+</div>
 
-    # ── Layout ──
-    fig.update_layout(
-        title=dict(text=title_txt,font=dict(color='#dce9ff',size=13),x=0),
-        paper_bgcolor='#0b1120',plot_bgcolor='#0d0d0d',
-        font=dict(color='#8ba8cc',size=11),
-        height=560,
-        legend=dict(orientation='h',yanchor='bottom',y=1.01,xanchor='right',x=1,
-                    bgcolor='rgba(11,17,32,0.8)',bordercolor='#1e3358',font=dict(size=10)),
-        margin=dict(l=50,r=20,t=50,b=10),
-        xaxis_rangeslider_visible=False,
-        hovermode='x unified',
-        dragmode='zoom',
-    )
-    # Axis styling
-    ax_style=dict(gridcolor='#1a1a2e',gridwidth=0.5,zeroline=False,
-                  showspikes=True,spikecolor='#2a4570',spikethickness=1,
-                  tickfont=dict(size=10))
-    fig.update_xaxes(**ax_style)
-    fig.update_yaxes(**ax_style)
-    fig.update_yaxes(title_text="THB",row=1,col=1)
-    fig.update_yaxes(title_text="RSI",range=[0,100],row=2,col=1)
-    fig.update_yaxes(title_text="Vol",row=3,col=1)
-    # RSI y-ticks
-    fig.update_yaxes(tickvals=[30,50,70],row=2,col=1)
+<script>
+const COLORS = {{
+  bg:'#0b1120', bg2:'#111a2e', grid:'#131f33',
+  up:'#22d68a', dn:'#ff5566', ema25:'#ff69b4', ema75:'#00e676', ema200:'#888888',
+  rsi:'#b0bec5', rsiOB:'#ef5350', rsiOS:'#26c6da',
+  txt:'#8ba8cc', cross:'#4a6480'
+}};
 
-    return fig
+const candleData = {candle_data};
+const lineData   = {line_data};
+const ema25d = {ema25_data};
+const ema75d = {ema75_data};
+const ema200d= {ema200_data};
+const rsiData= {rsi_data};
+const volData= {vol_data};
+
+let priceScale = '{price_scale}';
+let showCandle = {show_candle};
+
+const W = window.innerWidth;
+const PH = Math.round(W * 0.52);  // price pane 52%
+const RH = Math.round(W * 0.18);  // rsi pane  18%
+const VH = Math.round(W * 0.15);  // vol pane  15%
+
+document.getElementById('chart-price').style.height = PH+'px';
+document.getElementById('chart-rsi').style.height   = RH+'px';
+document.getElementById('chart-vol').style.height   = VH+'px';
+
+const chartOpts = (height) => ({{
+  width: W, height: height,
+  layout: {{ background:{{color:COLORS.bg}}, textColor:COLORS.txt, fontSize:11 }},
+  grid: {{ vertLines:{{color:COLORS.grid}}, horzLines:{{color:COLORS.grid}} }},
+  crosshair: {{ mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine:{{color:COLORS.cross,labelBackgroundColor:'#1e3358'}},
+                horzLine:{{color:COLORS.cross,labelBackgroundColor:'#1e3358'}} }},
+  timeScale: {{ borderColor:COLORS.grid, timeVisible:true, secondsVisible:false,
+                fixLeftEdge:true, fixRightEdge:true }},
+  rightPriceScale: {{ borderColor:COLORS.grid, mode: priceScale==='logarithmic'?1:0 }},
+  handleScroll: true, handleScale: true,
+}});
+
+const chartP = LightweightCharts.createChart(document.getElementById('chart-price'), chartOpts(PH));
+const chartR = LightweightCharts.createChart(document.getElementById('chart-rsi'),   chartOpts(RH));
+const chartV = LightweightCharts.createChart(document.getElementById('chart-vol'),   chartOpts(VH));
+
+// ── Price series ──
+const cSeries = chartP.addCandlestickSeries({{
+  upColor:COLORS.up, downColor:COLORS.dn,
+  borderUpColor:COLORS.up, borderDownColor:COLORS.dn,
+  wickUpColor:COLORS.up, wickDownColor:COLORS.dn,
+}});
+cSeries.setData(candleData);
+
+const lSeries = chartP.addLineSeries({{ color:COLORS.up, lineWidth:2, visible:!showCandle }});
+lSeries.setData(lineData);
+
+const e25 = chartP.addLineSeries({{ color:COLORS.ema25,  lineWidth:1, lineStyle:0, title:'EMA25',  priceLineVisible:false, lastValueVisible:false }});
+const e75 = chartP.addLineSeries({{ color:COLORS.ema75,  lineWidth:1, lineStyle:0, title:'EMA75',  priceLineVisible:false, lastValueVisible:false }});
+const e200= chartP.addLineSeries({{ color:COLORS.ema200, lineWidth:1, lineStyle:0, title:'EMA200', priceLineVisible:false, lastValueVisible:false }});
+e25.setData(ema25d); e75.setData(ema75d); e200.setData(ema200d);
+if (!showCandle) {{ cSeries.applyOptions({{visible:false}}); }}
+
+// ── RSI ──
+const rSeries = chartR.addLineSeries({{ color:COLORS.rsi, lineWidth:1.5, priceLineVisible:false }});
+rSeries.setData(rsiData);
+[{{price:70,color:COLORS.rsiOB,lineStyle:1}},{{price:50,color:'#333',lineStyle:2}},{{price:30,color:COLORS.rsiOS,lineStyle:1}}].forEach(l=>{{
+  rSeries.createPriceLine({{price:l.price,color:l.color,lineStyle:l.lineStyle,lineWidth:1,axisLabelVisible:true}});
+}});
+chartR.applyOptions({{ rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0.1}}}} }});
+
+// ── Volume ──
+const vSeries = chartV.addHistogramSeries({{ priceFormat:{{type:'volume'}}, priceScaleId:'vol' }});
+vSeries.setData(volData);
+chartV.applyOptions({{ rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0}}}} }});
+
+// ── Sync crosshair across all 3 panes ──
+function syncCrossHair(src, targets, param) {{
+  targets.forEach(t => {{
+    if (!param.point) {{ t.clearCrosshairPosition(); return; }}
+    const price = src.timeScale().coordinateToTime(param.point.x);
+    if (price) {{ const y = t.priceScale('right').priceToCoordinate(0) || 0; t.setCrosshairPosition(0,price,t.series||rSeries); }}
+  }});
+}}
+chartP.subscribeCrosshairMove(p => {{
+  const ts = p.time;
+  [chartR, chartV].forEach(c => {{ if (ts) c.setCrosshairPosition(0,ts,c===chartR?rSeries:vSeries); else c.clearCrosshairPosition(); }});
+  if (p.seriesData && p.seriesData.has(cSeries)) {{
+    const d = p.seriesData.get(cSeries);
+    if (d) document.getElementById('ohlc').innerHTML =
+      `O:<b style="color:${{d.open>=d.close?COLORS.dn:COLORS.up}}">${{d.open?.toFixed(2)}}</b>  ` +
+      `H:<b style="color:${{COLORS.up}}">${{d.high?.toFixed(2)}}</b>  ` +
+      `L:<b style="color:${{COLORS.dn}}">${{d.low?.toFixed(2)}}</b>  ` +
+      `C:<b style="color:${{d.open>=d.close?COLORS.dn:COLORS.up}}">${{d.close?.toFixed(2)}}</b>`;
+  }}
+}});
+
+// ── Sync time range across panes ──
+chartP.timeScale().subscribeVisibleTimeRangeChange(r => {{
+  if (r) {{ chartR.timeScale().setVisibleRange(r); chartV.timeScale().setVisibleRange(r); }}
+}});
+chartR.timeScale().subscribeVisibleTimeRangeChange(r => {{
+  if (r) {{ chartP.timeScale().setVisibleRange(r); chartV.timeScale().setVisibleRange(r); }}
+}});
+
+// ── Period buttons ──
+function setRange(days) {{
+  document.querySelectorAll('.pb').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (days >= 99999) {{ chartP.timeScale().fitContent(); chartR.timeScale().fitContent(); chartV.timeScale().fitContent(); return; }}
+  const all = candleData.length ? candleData : lineData;
+  if (!all.length) return;
+  const last = all[all.length-1].time;
+  const from = last - days*86400;
+  const range = {{from, to: last}};
+  chartP.timeScale().setVisibleRange(range);
+  chartR.timeScale().setVisibleRange(range);
+  chartV.timeScale().setVisibleRange(range);
+}}
+
+function toggleType() {{
+  showCandle = !showCandle;
+  cSeries.applyOptions({{visible: showCandle}});
+  lSeries.applyOptions({{visible: !showCandle}});
+  document.getElementById('btn_cs').textContent = showCandle ? 'Line' : 'Candle';
+}}
+
+function toggleLog() {{
+  priceScale = priceScale==='logarithmic'?'normal':'logarithmic';
+  chartP.applyOptions({{rightPriceScale:{{mode: priceScale==='logarithmic'?1:0}}}});
+}}
+
+function resetZoom() {{
+  chartP.timeScale().fitContent();
+  chartR.timeScale().fitContent();
+  chartV.timeScale().fitContent();
+}}
+
+// ── Resize handler ──
+window.addEventListener('resize', () => {{
+  const nw = window.innerWidth;
+  [chartP,chartR,chartV].forEach(c => c.applyOptions({{width:nw}}));
+}});
+
+// ── Init: show 1Y ──
+setTimeout(() => {{
+  const all = candleData.length ? candleData : lineData;
+  if (all.length) {{
+    const last = all[all.length-1].time;
+    const range = {{from: last-365*86400, to: last}};
+    chartP.timeScale().setVisibleRange(range);
+    chartR.timeScale().setVisibleRange(range);
+    chartV.timeScale().setVisibleRange(range);
+  }}
+}}, 150);
+</script>
+</body></html>"""
+
+    total_h = PH + RH + VH + 60  # +60 for header/legend/buttons
+    return html, total_h + 20
+
 
 # ─── 1b. Matplotlib fallback (used when plotly not installed) ──────────────────
 def make_price_chart(ticker, start):
@@ -1589,10 +1778,7 @@ def show_screener_tab():
         dt=st.tabs(["📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Scorecard","📰 News"])
         with dt[0]:
             with st.spinner("Loading…"):
-                if HAS_PLOTLY:
-                    fig2=make_price_chart_plotly(to_yf(drill),"2020-01-01"); st.plotly_chart(fig2,use_container_width=True)
-                else:
-                    fig2=make_price_chart(to_yf(drill),"2020-01-01"); st.pyplot(fig2,use_container_width=True); plt.close(fig2)
+                    html_c,h_c=make_tv_chart(to_yf(drill)); _components.html(html_c,height=h_c,scrolling=False)
         with dt[1]:
             d=fetch_all(to_yf(drill))
             for title,df in [("Income Statement",d['income']),("Balance Sheet",d['balance']),("Cash Flow",d['cashflow'])]:
@@ -1727,47 +1913,10 @@ def main():
     with tabs[1]:
         if not selected: _need_selection()
         else:
-            # Period + style controls
-            pc1,pc2,pc3=st.columns([3,3,4])
-            with pc1:
-                period_opts={"3M":"3mo","6M":"6mo","1Y":"1y","2Y":"2y","5Y":"5y","Max":"max"}
-                period_choice=st.selectbox("Period",list(period_opts.keys()),index=2,key="price_period",label_visibility="visible")
-            with pc2:
-                chart_type=st.selectbox("Chart type",["Candlestick","Line"],index=0,key="chart_type")
-            with pc3:
-                log_scale=st.checkbox("Log scale Y-axis",value=False,key="log_scale")
-
             for ticker in selected:
                 with st.spinner(f"Loading {ticker}…"):
-                    if HAS_PLOTLY:
-                        d=fetch_all(ticker)
-                        # Re-filter by chosen period
-                        price_df=d['price']
-                        period_map={"3mo":90,"6mo":180,"1y":365,"2y":730,"5y":1825,"max":99999}
-                        ndays=period_map.get(period_opts[period_choice],365)
-                        if not price_df.empty:
-                            cutoff=price_df.index[-1]-pd.Timedelta(days=ndays)
-                            price_df=price_df[price_df.index>=cutoff]
-                        # Build chart
-                        d_tmp=dict(d,price=price_df)
-                        fig=make_price_chart_plotly(ticker,str(price_df.index[0].date()) if not price_df.empty else start)
-                        # Apply style options
-                        if log_scale:
-                            fig.update_yaxes(type='log',row=1,col=1)
-                        # Switch to line if requested
-                        if chart_type=="Line":
-                            for trace in fig.data:
-                                if hasattr(trace,'type') and trace.type=='candlestick':
-                                    trace.visible=False
-                            close_vals=price_df['Close'] if not price_df.empty else pd.Series()
-                            fig.add_trace(go.Scatter(x=close_vals.index,y=close_vals,
-                                                     name='Close',line=dict(color='#00c8f8',width=2)),row=1,col=1)
-                        st.plotly_chart(fig,use_container_width=True,config={
-                            'displayModeBar':True,
-                            'modeBarButtonsToAdd':['drawline','drawopenpath','eraseshape'],
-                            'scrollZoom':True})
-                    else:
-                        fig=make_price_chart(ticker,start); st.pyplot(fig,use_container_width=True); plt.close(fig)
+                    html_chart, chart_h = make_tv_chart(ticker)
+                    _components.html(html_chart, height=chart_h, scrolling=False)
 
     # ── Financials tab ─────────────────────────────────────────────────────────
     with tabs[2]:
