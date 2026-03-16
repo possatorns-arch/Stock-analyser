@@ -188,11 +188,11 @@ SECTOR_PROFILES = {
         'rev_cagr_min': 5,
         'gross_margin_min': None,   # Replace with net interest income / revenue
         'net_margin_min': 15,       # Banks earn fat margins on revenue
-        'roe_min': 10,              # Capital-intensive; 10%+ is good for Thai banks
+        'roe_min': 12,              # Capital-intensive; 10%+ is good for Thai banks
         'de_max': None,             # SKIP — structural, not a risk signal
         'cr_min': None,             # SKIP — deposit-funded; ALM manages liquidity
         'ic_min': 2,                # Banks earn interest; coverage concept differs
-        'div_yield_min': 2.0,       # Thai banks historically pay 3–6%
+        'div_yield_min': 3.0,       # Thai banks historically pay 3–6%
         'fcf_mode': 'ocf_positive', # OCF = core cash; capex minimal for banks
         'phantom_mode': 'ni_trend', # Loan book expansion causes OCF swing; NI trend better signal
     },
@@ -211,7 +211,7 @@ SECTOR_PROFILES = {
         'de_max': 6.0,
         'cr_min': None,             # Funded by bonds/banks, not payables
         'ic_min': 2,
-        'div_yield_min': 1.0,
+        'div_yield_min': 3.0,
         'fcf_mode': 'ocf_positive',
         'phantom_mode': 'ni_trend',
     },
@@ -226,11 +226,11 @@ SECTOR_PROFILES = {
         'rev_cagr_min': 5,
         'gross_margin_min': 25,     # Thai residential developers: 25–40%
         'net_margin_min': 8,
-        'roe_min': 10,
+        'roe_min': 15,
         'de_max': 1.5,
         'cr_min': 1.2,              # Funded partly by homebuyer deposits
         'ic_min': 3,
-        'div_yield_min': 2.0,
+        'div_yield_min': 5.0,
         'fcf_mode': 'avg_3y',       # 3Y average; single years can be heavily negative
         'phantom_mode': 'standard',
     },
@@ -246,11 +246,11 @@ SECTOR_PROFILES = {
         'rev_cagr_min': 5,
         'gross_margin_min': 20,     # Commodity/refining margins can be thin
         'net_margin_min': 5,
-        'roe_min': 8,
+        'roe_min': 10,
         'de_max': 2.5,
         'cr_min': 1.0,
         'ic_min': 3,
-        'div_yield_min': 3.0,       # Energy/utility co.s should distribute cash
+        'div_yield_min': 4.0,       # Energy/utility co.s should distribute cash
         'fcf_mode': 'avg_3y',
         'phantom_mode': 'standard',
     },
@@ -265,7 +265,7 @@ SECTOR_PROFILES = {
         'de_max': 0.5,
         'cr_min': 1.5,
         'ic_min': 5,
-        'div_yield_min': 1.0,
+        'div_yield_min': 2.5,
         'fcf_mode': 'all_positive',
         'phantom_mode': 'standard',
     },
@@ -796,12 +796,12 @@ _ROW_TIERS = {
     'Gross Profit':          'star',
     'Operating Income':      'star',
     'Net Income':            'star',
-    'EBITDA':                'key',
+    'EBITDA':                'star',
     'Gross Profit Ratio':    'key',
     'Operating Margin':      'key',
     'Net Income Ratio':      'key',
     'Cost Of Revenue':       'key',
-    'Total Expenses':        'key',
+    'Total Expenses':        'star',
     'Interest Expense':      'key',
     'Tax Provision':         '',
     'Diluted EPS':           'key',
@@ -1109,15 +1109,15 @@ def compute_vi_scorecard(ticker):
     nm_med=_med(nm_s)
     sec_a.append((f'Net Margin (5Y median)',f'>{nm_min}%',
                   f"{nm_med:.1f}%" if nm_med else 'N/A',
-                  nm_med is not None and nm_med>=nm_min,
-                  'Net margin shows how much of every revenue baht becomes profit after all costs'))
+                  nm_med is not None and nm_med>=nm_min
+                  ))
 
     roe_min=thr['roe_min']
     roe_med=_med(roe_s)
     sec_a.append((f'ROE (5Y median)',f'>{roe_min}%',
                   f"{roe_med:.1f}%" if roe_med else 'N/A',
-                  roe_med is not None and roe_med>=roe_min,
-                  'ROE measures how efficiently the company generates profit from shareholders capital'))
+                  roe_med is not None and roe_med>=roe_min
+                  ))
 
     earn_ok=_all_pos(net_income)
     sec_a.append(('Earnings Consistency','All years +',
@@ -1153,7 +1153,7 @@ def compute_vi_scorecard(ticker):
         sec_b.append((f'Current Ratio',f'>{cr_min}×',
                       f"{crat:.2f}×" if crat is not None else 'N/A',
                       crat is not None and crat>=cr_min,
-                      'Current ratio >1 means current assets cover current debts — company can pay short-term bills'))
+                      'Current ratio >1: cover current debts — company can pay short-term bills'))
 
     ic_min=thr['ic_min']
     try:
@@ -1511,14 +1511,14 @@ TICKER_THAI={
     "BANPU":["\u0e1a\u0e49\u0e32\u0e19\u0e1b\u0e39"],"IVL":["Indorama"],
 }
 RISK_KW=[
-    (4,"Fraud/Corruption",["fraud","embezzl","corrupt","bribery","ponzi","money launder","misappropriat","fictitious","kickback","fake invoice","\u0e09\u0e49\u0e2d\u0e42\u0e01\u0e07","\u0e17\u0e38\u0e08\u0e23\u0e34\u0e15","\u0e42\u0e01\u0e07\u0e40\u0e07\u0e34\u0e19","\u0e22\u0e31\u0e01\u0e22\u0e2d\u0e01","\u0e1b\u0e25\u0e2d\u0e21"]),
+    (4,"Fraud/Corruption",["fraud","embezzl","corrupt","bribery","ponzi","money launder","misappropriate","fictitious","kickback","fake invoice","\u0e09\u0e49\u0e2d\u0e42\u0e01\u0e07","\u0e17\u0e38\u0e08\u0e23\u0e34\u0e15","\u0e42\u0e01\u0e07\u0e40\u0e07\u0e34\u0e19","\u0e22\u0e31\u0e01\u0e22\u0e2d\u0e01","\u0e1b\u0e25\u0e2d\u0e21"]),
     (4,"Criminal Charges",["arrested","indicted","criminal charge","prosecut","warrant","jail","prison","charged with","\u0e08\u0e31\u0e1a\u0e01\u0e38\u0e21","\u0e04\u0e14\u0e35\u0e2d\u0e32\u0e0d\u0e32","\u0e2d\u0e2d\u0e01\u0e2b\u0e21\u0e32\u0e22\u0e08\u0e31\u0e1a","\u0e16\u0e39\u0e01\u0e08\u0e31\u0e1a"]),
     (4,"Regulatory Action",["sec charges","suspended trading","trading halted","delisted","revoked license","\u0e2b\u0e22\u0e38\u0e14\u0e0b\u0e37\u0e49\u0e2d\u0e02\u0e32\u0e22","\u0e16\u0e2d\u0e14\u0e17\u0e30\u0e40\u0e1a\u0e35\u0e22\u0e19"]),
     (3,"Investigation",["investigat","probe","raided","subpoena","sec inquiry","dsi","special case","\u0e2a\u0e2d\u0e1a\u0e2a\u0e27\u0e19","\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a","\u0e1a\u0e38\u0e01\u0e04\u0e49\u0e19","\u0e14\u0e2a\u0e2e."]),
     (3,"Legal Action",["lawsuit","sued","litigation","court order","injunction","class action","filed complaint","\u0e1f\u0e49\u0e2d\u0e07\u0e23\u0e49\u0e2d\u0e07","\u0e23\u0e49\u0e2d\u0e07\u0e17\u0e38\u0e01\u0e02\u0e4c","\u0e28\u0e32\u0e25"]),
     (3,"Mgmt Misconduct",["ceo resign","fired","dismissed","misconduct","insider trading","executive arrested","management arrested","\u0e1c\u0e39\u0e49\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23\u0e25\u0e32\u0e2d\u0e2d\u0e01","\u0e1c\u0e39\u0e49\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23\u0e16\u0e39\u0e01\u0e08\u0e31\u0e1a"]),
     (2,"Accounting/Audit",["restat","qualified opinion","going concern","material weakness","auditor resign","delayed filing","falsif","\u0e07\u0e1a\u0e01\u0e32\u0e23\u0e40\u0e07\u0e34\u0e19\u0e41\u0e01\u0e49\u0e44\u0e02"]),
-    (2,"Regulatory Warning",["warning","penalt","violation","non-complian","fine imposed","sanction","\u0e1b\u0e23\u0e31\u0e1a","\u0e42\u0e17\u0e29","\u0e40\u0e15\u0e37\u0e2d\u0e19"]),
+    (2,"Regulatory Warning",["warning","penalty","violation","non-complian","fine imposed","sanction","\u0e1b\u0e23\u0e31\u0e1a","\u0e42\u0e17\u0e29","\u0e40\u0e15\u0e37\u0e2d\u0e19"]),
     (2,"Related Party",["related party","self-dealing","tunneling","undisclosed transaction","\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e01\u0e31\u0e1a\u0e1a\u0e38\u0e04\u0e04\u0e25\u0e17\u0e35\u0e48\u0e40\u0e01\u0e35\u0e48\u0e22\u0e27\u0e02\u0e49\u0e2d\u0e07"]),
     (1,"Controversy",["scandal","controversy","boycott","\u0e41\u0e09","\u0e01\u0e23\u0e30\u0e41\u0e2a"]),
 ]
@@ -1909,8 +1909,8 @@ def main():
 
     with st.sidebar:
         st.markdown("<div style='padding:4px 0 12px'>"
-                    "<div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
-                    "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition · Sector-Adjusted</div></div>",unsafe_allow_html=True)
+                    "<div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 STOCK Analyser</div>"
+                    "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition</div></div>",unsafe_allow_html=True)
 
         # ── Date range ──────────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'>📅 Chart Start Date</div>",unsafe_allow_html=True)
@@ -2008,13 +2008,13 @@ def main():
                     if k in st.session_state: del st.session_state[k]
                 st.rerun()
         with bc2:
-            if st.button("🔄 Refresh Data",use_container_width=True,help="Force-reload from Yahoo Finance"):
+            if st.button("🔄 Refresh",use_container_width=True,help="Force-reload from Yahoo Finance"):
                 st.cache_data.clear(); st.rerun()
 
     TABS=["🔍 Screener","📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Score","📰 News"]
     tabs=st.tabs(TABS)
     def _need_selection():
-        st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:36px;text-align:center;margin-top:20px'>"
+        st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:50px;text-align:center;margin-top:20px'>"
                     "<div style='font-size:36px'>←</div><div style='color:#00c8f8;font-size:16px;margin:10px 0 6px;font-weight:600'>Pick a stock in the sidebar</div>"
                     "<div style='color:#2a4060;font-size:13px'>Use the sector icons → stock list on the left</div></div>",unsafe_allow_html=True)
 
