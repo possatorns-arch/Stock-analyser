@@ -366,11 +366,14 @@ def fetch_all(ticker):
 EMA_W=[25,75,200]; EMA_C=['deeppink','limegreen','grey']; EMA_L=['EMA 25','EMA 75','EMA 200']
 
 def make_tv_chart(ticker):
+    """
+    TradingView Lightweight Charts — full interactive chart.
+    Daily / Weekly / Monthly intervals.
+    Panes: Price+EMAs | RSI | Volume | P/BV
+    Period buttons, crosshair sync, zoom/pan, log scale.
+    """
     import json
-    import numpy as np
-    import pandas as pd
 
-    # 1. Fetch Data
     d = fetch_all(ticker)
     raw = d['price'].copy()
     if raw.empty:
@@ -378,145 +381,368 @@ def make_tv_chart(ticker):
 
     raw.index = strip_tz(raw.index)
     raw = raw.sort_index()
-    
-    # 2. ALIGN ALL DATA TO THE PRICE INDEX (Crucial for vertical alignment)
-    full_idx = raw.index
-    
-    # Calculate indicators
-    ema25 = raw['Close'].ewm(span=25, adjust=False).mean().reindex(full_idx)
-    rsi = calc_rsi(raw['Close']).reindex(full_idx)
-    
-    # P/BV Alignment
-    pbv_series = pd.Series(index=full_idx, dtype=float)
+
+    # ── Compute EMAs and RSI on full daily history ──────────────────────────────
+    close_d = raw['Close']
+    ema25_d  = close_d.ewm(span=25,  adjust=False).mean()
+    ema75_d  = close_d.ewm(span=75,  adjust=False).mean()
+    ema200_d = close_d.ewm(span=200, adjust=False).mean()
+    rsi_d    = calc_rsi(close_d)
+
+    # ── Resample to Weekly and Monthly ─────────────────────────────────────────
+    def resample_ohlcv(df, rule):
+        r = df.resample(rule).agg(
+            Open=('Open','first'), High=('High','max'),
+            Low=('Low','min'),   Close=('Close','last'), Volume=('Volume','sum')
+        ).dropna()
+        # recompute EMA/RSI on resampled close
+        c = r['Close']
+        r['ema25']  = c.ewm(span=25,  adjust=False).mean()
+        r['ema75']  = c.ewm(span=75,  adjust=False).mean()
+        r['ema200'] = c.ewm(span=200, adjust=False).mean()
+        r['rsi']    = calc_rsi(c)
+        return r
+
+    raw_with_ema = raw.copy()
+    raw_with_ema['ema25']  = ema25_d
+    raw_with_ema['ema75']  = ema75_d
+    raw_with_ema['ema200'] = ema200_d
+    raw_with_ema['rsi']    = rsi_d
+    week_df  = resample_ohlcv(raw, 'W-FRI')
+    month_df = resample_ohlcv(raw, 'ME')
+
+    # ── P/BV historical series ─────────────────────────────────────────────────
+    pbv_series = pd.Series(dtype=float)
     try:
-        bal, info = d['balance'], d['info']
+        bal   = d['balance']
+        info  = d['info']
         equity = safe_row(bal, 'Stockholders Equity', 'Total Equity Gross Minority Interest')
         shares = info.get('sharesOutstanding') or info.get('impliedSharesOutstanding')
-        if not equity.empty and shares:
-            eq_daily = equity.reindex(equity.index.union(full_idx)).sort_index().interpolate(method='time').reindex(full_idx)
-            pbv_series = (raw['Close'] / (eq_daily / float(shares)))
-    except: pass
+        if not equity.empty and shares and shares > 0:
+            # equity index is annual; interpolate to daily
+            equity_daily = equity.reindex(
+                equity.index.union(close_d.index)
+            ).sort_index().interpolate(method='time').reindex(close_d.index)
+            bvps = equity_daily / float(shares)
+            pbv_series = (close_d / bvps).replace([np.inf, -np.inf], np.nan).dropna()
+    except Exception:
+        pass
 
-    # 3. SERIALIZE (Using the shared index to ensure 1:1 bar mapping)
-    def get_data(df_slice, series_ema, series_rsi, series_pbv):
-        times = [int(t.timestamp()) for t in df_slice.index]
-        return {
-            "c": [{"time": t, "open": r.Open, "high": r.High, "low": r.Low, "close": r.Close} for t, r in zip(times, df_slice.itertuples())],
-            "e": [{"time": t, "value": v} for t, v in zip(times, series_ema) if not pd.isna(v)],
-            "r": [{"time": t, "value": v} for t, v in zip(times, series_rsi) if not pd.isna(v)],
-            "v": [{"time": t, "value": r.Volume, "color": "#26a69a44" if r.Close >= r.Open else "#ef535044"} for t, r in zip(times, df_slice.itertuples())],
-            "b": [{"time": t, "value": v} for t, v in zip(times, series_pbv) if not pd.isna(v)]
-        }
+    # ── Serialisers ────────────────────────────────────────────────────────────
+    def candles(df):
+        return [{"time": int(t.timestamp()),
+                 "open":  round(float(r['Open']),  3),
+                 "high":  round(float(r['High']),  3),
+                 "low":   round(float(r['Low']),   3),
+                 "close": round(float(r['Close']), 3)}
+                for t, r in df.iterrows()
+                if not any(pd.isna(r[c]) for c in ['Open','High','Low','Close'])]
 
-    # Prepare Interval Data
-    d_json = get_data(raw, ema25, rsi, pbv_series)
-    
-    # Weekly Resample (Aligning indices here too)
-    w_df = raw.resample('W-FRI').agg({'Open':'first','High':'max','Low':'min','Close':'last','Volume':'sum'}).dropna()
-    w_idx = w_df.index
-    w_json = get_data(w_df, w_df['Close'].ewm(span=25, adjust=False).mean(), calc_rsi(w_df['Close']), pbv_series.reindex(w_idx))
+    def series(s):
+        return [{"time": int(t.timestamp()), "value": round(float(v), 4)}
+                for t, v in s.items() if not pd.isna(v)]
 
-    # Layout Setup
-    base = ticker.replace('.BK', '')
-    has_pbv = not pbv_series.dropna().empty
-    PH, RH, VH, BH = 400, 120, 100, (100 if has_pbv else 0)
-    total_h = PH + RH + VH + BH + 100
+    def vols(df):
+        return [{"time": int(t.timestamp()),
+                 "value": float(r['Volume']),
+                 "color": "#22d68a55" if r['Close'] >= r['Open'] else "#ff556655"}
+                for t, r in df.iterrows() if not pd.isna(r['Volume'])]
 
-    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-    <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{ background: #0b0e14; color: #d1d4dc; font-family: sans-serif; overflow: hidden; }}
-        .pane {{ position: relative; width: 100%; border-bottom: 1px solid #2a2e39; }}
-        .legend {{ position: absolute; top: 8px; left: 12px; z-index: 10; font-size: 11px; font-family: monospace; pointer-events: none; }}
-        .legend b {{ color: #2962ff; }}
-        .toolbar {{ display: flex; gap: 10px; padding: 8px 15px; background: #131722; align-items: center; }}
-        .pb {{ background: #2a2e39; border: none; color: #b2b5be; padding: 4px 10px; cursor: pointer; font-size: 11px; border-radius: 3px; }}
-        .pb.active {{ background: #2962ff; color: white; }}
-    </style></head>
-    <body>
-    <div class="pane" style="height:{PH}px"><div class="legend">{base} <span id="v-price"></span></div><div id="p-price" style="height:100%"></div></div>
-    <div class="pane" style="height:{RH}px"><div class="legend">RSI 14 <span id="v-rsi"></span></div><div id="p-rsi" style="height:100%"></div></div>
-    <div class="pane" style="height:{VH}px"><div class="legend">Vol <span id="v-vol"></span></div><div id="p-vol" style="height:100%"></div></div>
-    {f'<div class="pane" style="height:{BH}px"><div class="legend">P/B Ratio <span id="v-pbv"></span></div><div id="p-pbv" style="height:100%"></div></div>' if has_pbv else ''}
+    # daily
+    d_candle = json.dumps(candles(raw))
+    d_line   = json.dumps(series(close_d))
+    d_e25    = json.dumps(series(ema25_d))
+    d_e75    = json.dumps(series(ema75_d))
+    d_e200   = json.dumps(series(ema200_d))
+    d_rsi    = json.dumps(series(rsi_d))
+    d_vol    = json.dumps(vols(raw))
+    # weekly
+    w_candle = json.dumps(candles(week_df))
+    w_line   = json.dumps(series(week_df['Close']))
+    w_e25    = json.dumps(series(week_df['ema25']))
+    w_e75    = json.dumps(series(week_df['ema75']))
+    w_e200   = json.dumps(series(week_df['ema200']))
+    w_rsi    = json.dumps(series(week_df['rsi']))
+    w_vol    = json.dumps(vols(week_df))
+    # monthly
+    m_candle = json.dumps(candles(month_df))
+    m_line   = json.dumps(series(month_df['Close']))
+    m_e25    = json.dumps(series(month_df['ema25']))
+    m_e75    = json.dumps(series(month_df['ema75']))
+    m_e200   = json.dumps(series(month_df['ema200']))
+    m_rsi    = json.dumps(series(month_df['rsi']))
+    m_vol    = json.dumps(vols(month_df))
+    # P/BV
+    pbv_data = json.dumps(series(pbv_series))
 
-    <div class="toolbar">
-        <button class="pb active" id="ibD" onclick="setIv('D')">Daily</button>
-        <button class="pb" id="ibW" onclick="setIv('W')">Weekly</button>
-        <div style="width:1px; height:15px; background:#363a45"></div>
-        <button class="pb" onclick="setR(180)">6M</button>
-        <button class="pb" onclick="setR(365)">1Y</button>
-    </div>
+    # ── Header stats (full history) ────────────────────────────────────────────
+    ep   = float(close_d.iloc[-1])
+    fmax = (ep - float(close_d.max())) / float(close_d.max()) * 100
+    fmin = (ep - float(close_d.min())) / float(close_d.min()) * 100
+    dy   = trailing_div_yield(d['divs'], d['price'])
+    dy_txt = f" · Div {dy:.2f}%" if dy else ""
+    base  = ticker.replace('.BK', '')
+    has_pbv = len(pbv_series) > 0
+    pbv_h   = 110 if has_pbv else 0
+    title   = f"{base} · {ep:.2f} THB · ▼ from MAX {fmax:.1f}% · ▲ from MIN +{fmin:.1f}%{dy_txt}"
 
-    <script>
-    const DATA = {{ D: {json.dumps(d_json)}, W: {json.dumps(w_json)} }};
-    const charts = [];
-    const config = (time) => ({{
-        width: window.innerWidth,
-        layout: {{ background: {{ color: '#0b0e14' }}, textColor: '#d1d4dc', fontSize: 11 }},
-        grid: {{ vertLines: {{ color: '#1e222d' }}, horzLines: {{ color: '#1e222d' }} }},
-        rightPriceScale: {{ borderColor: '#2a2e39', minimumWidth: 110 }},
-        timeScale: {{ visible: time, borderColor: '#2a2e39' }},
-        crosshair: {{ mode: 0 }},
-    }});
+    PH, RH, VH, BH = 400, 130, 100, pbv_h
+    total_h = PH + RH + VH + BH + 82  # 82 = header+legend+toolbar
 
-    const cP = LightweightCharts.createChart(document.getElementById('p-price'), config(false));
-    const cR = LightweightCharts.createChart(document.getElementById('p-rsi'), config(false));
-    const cV = LightweightCharts.createChart(document.getElementById('p-vol'), config(!{str(has_pbv).lower()}));
-    charts.push(cP, cR, cV);
+    html = f"""<!DOCTYPE html><html>
+<head>
+<meta charset="utf-8">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+* {{ box-sizing:border-box; margin:0; padding:0; }}
+body {{ background:#0b1120; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden; user-select:none; }}
+#hdr {{ padding:7px 14px 3px; color:#dce9ff; font-size:12.5px; font-weight:600;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+#stats {{ padding:0 14px 4px; font-size:11px; color:#4a6480; }}
+#ohlc  {{ display:inline; }}
+#pct   {{ display:inline; margin-left:10px; }}
+.pane  {{ width:100%; }}
+#p-rsi {{ border-top:1px solid #1a2a40; }}
+#p-vol {{ border-top:1px solid #1a2a40; }}
+#p-pbv {{ border-top:1px solid #1a2a40; }}
+.toolbar {{ display:flex; gap:3px; padding:5px 10px; background:#080e1c;
+            border-top:1px solid #0e1a2e; flex-wrap:nowrap; align-items:center; }}
+.pb {{ background:#111a2e; border:1px solid #1e3358; color:#5a7090;
+       padding:3px 9px; border-radius:4px; cursor:pointer;
+       font-size:11px; font-weight:600; white-space:nowrap; }}
+.pb:hover {{ background:#0d1e38; border-color:#00c8f8; color:#c8e8ff; }}
+.pb.active {{ background:#0a1e38; border-color:#00c8f8; color:#00c8f8; }}
+.sep {{ width:1px; height:16px; background:#1e3358; margin:0 3px; }}
+.spacer {{ flex:1; }}
+</style>
+</head>
+<body>
+<div id="hdr">{title}</div>
+<div id="stats"><span id="ohlc"></span><span id="pct"></span></div>
+<div id="p-price" class="pane"></div>
+<div id="p-rsi"   class="pane"></div>
+<div id="p-vol"   class="pane"></div>
+{'<div id="p-pbv" class="pane"></div>' if has_pbv else ''}
+<div class="toolbar">
+  <!-- Period -->
+  <button class="pb" onclick="setRange(90)">3M</button>
+  <button class="pb" onclick="setRange(180)">6M</button>
+  <button class="pb active" id="pb1y" onclick="setRange(365)">1Y</button>
+  <button class="pb" onclick="setRange(730)">2Y</button>
+  <button class="pb" onclick="setRange(1825)">5Y</button>
+  <button class="pb" onclick="setRange(99999)">Max</button>
+  <div class="sep"></div>
+  <!-- Interval -->
+  <button class="pb active" id="ibD" onclick="setInterval('D')">D</button>
+  <button class="pb" id="ibW" onclick="setInterval('W')">W</button>
+  <button class="pb" id="ibM" onclick="setInterval('M')">M</button>
+  <div class="sep"></div>
+  <!-- Type + tools -->
+  <button class="pb" id="btn_type" onclick="toggleType()">Line</button>
+  <button class="pb" id="btn_log"  onclick="toggleLog()">Log</button>
+  <button class="pb" onclick="resetZoom()">⟳</button>
+</div>
 
-    let cB = null;
-    if (document.getElementById('p-pbv')) {{
-        cB = LightweightCharts.createChart(document.getElementById('p-pbv'), config(true));
-        charts.push(cB);
+<script>
+const C = {{ bg:'#0b1120',grid:'#0f1c2e',up:'#22d68a',dn:'#ff5566',
+             e25:'#ff69b4',e75:'#00e676',e200:'#666',
+             rsi:'#a0b8d0',rsiOB:'#ef5350',rsiOS:'#26c6da',
+             pbv:'#f5c842',txt:'#8ba8cc',cross:'#2a4060' }};
+
+// ── All interval data ──────────────────────────────────────────────────────────
+const DATA = {{
+  D: {{ candle:{d_candle}, line:{d_line}, e25:{d_e25}, e75:{d_e75}, e200:{d_e200}, rsi:{d_rsi}, vol:{d_vol} }},
+  W: {{ candle:{w_candle}, line:{w_line}, e25:{w_e25}, e75:{w_e75}, e200:{w_e200}, rsi:{w_rsi}, vol:{w_vol} }},
+  M: {{ candle:{m_candle}, line:{m_line}, e25:{m_e25}, e75:{m_e75}, e200:{m_e200}, rsi:{m_rsi}, vol:{m_vol} }},
+}};
+const pbvData = {pbv_data};
+
+let curInterval = 'D';
+let showCandle = true;
+let logMode = false;
+let curRange = 365;  // days
+
+// ── Chart heights ──────────────────────────────────────────────────────────────
+const W  = Math.max(window.innerWidth, 400);
+const PH = {PH}, RH = {RH}, VH = {VH}, BH = {BH};
+
+document.getElementById('p-price').style.height = PH+'px';
+document.getElementById('p-rsi').style.height   = RH+'px';
+document.getElementById('p-vol').style.height   = VH+'px';
+{'document.getElementById("p-pbv").style.height = BH+"px";' if has_pbv else '// no pbv'}
+
+const mkOpts = (h) => ({{
+  width:W, height:h,
+  layout:{{ background:{{color:C.bg}}, textColor:C.txt, fontSize:11 }},
+  grid:{{ vertLines:{{color:C.grid}}, horzLines:{{color:C.grid}} }},
+  crosshair:{{ mode:LightweightCharts.CrosshairMode.Normal,
+               vertLine:{{color:C.cross,labelBackgroundColor:'#1e3358'}},
+               horzLine:{{color:C.cross,labelBackgroundColor:'#1e3358'}} }},
+  timeScale:{{ borderColor:C.grid, timeVisible:true, secondsVisible:false }},
+  rightPriceScale:{{ borderColor:C.grid }},
+  handleScroll:true, handleScale:true,
+}});
+
+const cP = LightweightCharts.createChart(document.getElementById('p-price'), mkOpts(PH));
+const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkOpts(RH));
+const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts(VH));
+{'const cB = LightweightCharts.createChart(document.getElementById("p-pbv"), mkOpts(BH));' if has_pbv else 'const cB = null;'}
+
+// ── Series ────────────────────────────────────────────────────────────────────
+const sCand = cP.addCandlestickSeries({{
+  upColor:C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn
+}});
+const sLine = cP.addLineSeries({{ color:C.up, lineWidth:2, visible:false, priceLineVisible:false }});
+const sE25  = cP.addLineSeries({{ color:C.e25,  lineWidth:1, priceLineVisible:false, lastValueVisible:false, title:'EMA25'  }});
+const sE75  = cP.addLineSeries({{ color:C.e75,  lineWidth:1, priceLineVisible:false, lastValueVisible:false, title:'EMA75'  }});
+const sE200 = cP.addLineSeries({{ color:C.e200, lineWidth:1, priceLineVisible:false, lastValueVisible:false, title:'EMA200' }});
+const sRsi  = cR.addLineSeries({{ color:C.rsi, lineWidth:1.5, priceLineVisible:false }});
+[{{p:70,c:C.rsiOB,s:1}},{{p:50,c:'#222',s:2}},{{p:30,c:C.rsiOS,s:1}}].forEach(l=>
+  sRsi.createPriceLine({{price:l.p,color:l.c,lineStyle:l.s,lineWidth:1,axisLabelVisible:true}}));
+cR.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.05,bottom:0.05}},mode:0}}}});
+const sVol  = cV.addHistogramSeries({{ priceFormat:{{type:'volume'}} }});
+cV.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0}}}}}});
+let sPbv = null;
+if (cB) {{
+  sPbv = cB.addLineSeries({{ color:C.pbv, lineWidth:1.5, priceLineVisible:false, title:'P/BV' }});
+  sPbv.setData(pbvData);
+  cB.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0.1}}}}}});
+  // P/BV reference lines at 1×, 2×, 3×
+  [1,2,3].forEach(v => sPbv.createPriceLine({{price:v,color:'#2a4060',lineStyle:2,lineWidth:1,axisLabelVisible:true}}));
+}}
+
+// ── Load interval data ─────────────────────────────────────────────────────────
+function loadData(interval) {{
+  const d = DATA[interval];
+  if (showCandle) {{ sCand.setData(d.candle); sLine.setData(d.line); }}
+  else            {{ sCand.setData(d.candle); sLine.setData(d.line); }}
+  sCand.setData(d.candle);
+  sLine.setData(d.line);
+  sE25.setData(d.e25); sE75.setData(d.e75); sE200.setData(d.e200);
+  sRsi.setData(d.rsi);
+  sVol.setData(d.vol);
+  curInterval = interval;
+}}
+loadData('D');
+
+// ── Crosshair sync ─────────────────────────────────────────────────────────────
+const allCharts = [cP, cR, cV, ...(cB?[cB]:[])];
+const seriesMap = new Map([[cR,sRsi],[cV,sVol]]);
+if (cB) seriesMap.set(cB, sPbv);
+
+cP.subscribeCrosshairMove(p => {{
+  const ts = p.time;
+  [cR,cV,...(cB?[cB]:[])].forEach(c => {{
+    if (ts) c.setCrosshairPosition(0, ts, seriesMap.get(c));
+    else c.clearCrosshairPosition();
+  }});
+  // OHLC legend
+  if (p.seriesData?.has(sCand)) {{
+    const d = p.seriesData.get(sCand);
+    if (d) {{
+      const col = d.close >= d.open ? C.up : C.dn;
+      document.getElementById('ohlc').innerHTML =
+        `O:<b style="color:${{col}}">${{d.open?.toFixed(2)}}</b> ` +
+        `H:<b style="color:${{C.up}}">${{d.high?.toFixed(2)}}</b> ` +
+        `L:<b style="color:${{C.dn}}">${{d.low?.toFixed(2)}}</b> ` +
+        `C:<b style="color:${{col}}">${{d.close?.toFixed(2)}}</b>`;
     }}
-
-    const sC = cP.addCandlestickSeries({{ upColor:'#26a69a', downColor:'#ef5350', borderVisible:false, wickUpColor:'#26a69a', wickDownColor:'#ef5350' }});
-    const sE = cP.addLineSeries({{ color:'#f23645', lineWidth:1, priceLineVisible:false, lastValueVisible:false }});
-    const sR = cR.addLineSeries({{ color:'#7e57c2', lineWidth:2, priceLineVisible:false }});
-    const sV = cV.addHistogramSeries({{ color: '#26a69a' }});
-    let sB = cB ? cB.addLineSeries({{ color: '#eab308', lineWidth: 2 }}) : null;
-
-    // SYNC LOGIC
-    charts.forEach(c => {{
-        c.timeScale().subscribeVisibleLogicalRangeChange(range => {{
-            charts.forEach(other => {{ if(other !== c) other.timeScale().setVisibleLogicalRange(range); }});
-        }});
-    }});
-
-    cP.subscribeCrosshairMove(p => {{
-        charts.slice(1).forEach(c => c.setCrosshairPosition(0, p.time, sR));
-        if (!p.time) return;
-        const d = p.seriesData.get(sC), r = p.seriesData.get(sR), v = p.seriesData.get(sV);
-        if (d) document.getElementById('v-price').innerHTML = ` O:${{d.open}} H:${{d.high}} L:${{d.low}} C:${{d.close}}`;
-        if (r) document.getElementById('v-rsi').innerHTML = ` <b>${{r.value.toFixed(2)}}</b>`;
-        if (v) document.getElementById('v-vol').innerHTML = ` <b>${{(v.value/1e6).toFixed(2)}}M</b>`;
-        if (sB) {{
-            const b = p.seriesData.get(sB);
-            if (b) document.getElementById('v-pbv').innerHTML = ` <b>${{b.value.toFixed(2)}}</b>`;
-        }}
-    }});
-
-    function setIv(iv) {{
-        const d = DATA[iv];
-        sC.setData(d.c); sE.setData(d.e); sR.setData(d.r); sV.setData(d.v);
-        if(sB) sB.setData(d.b);
-        document.querySelectorAll('.pb[id^="ib"]').forEach(b => b.classList.remove('active'));
-        document.getElementById('ib'+iv).classList.add('active');
-        cP.timeScale().fitContent();
+  }}
+  // % from MAX/MIN in visible range
+  if (ts) {{
+    const vr = cP.timeScale().getVisibleRange();
+    if (vr) {{
+      const vis = DATA[curInterval].candle.filter(x => x.time >= vr.from && x.time <= vr.to);
+      if (vis.length > 0) {{
+        const hi = Math.max(...vis.map(x=>x.high));
+        const lo = Math.min(...vis.map(x=>x.low));
+        const last = vis[vis.length-1].close;
+        const pm = ((last-hi)/hi*100).toFixed(1);
+        const pl = ((last-lo)/lo*100).toFixed(1);
+        document.getElementById('pct').innerHTML =
+          ` <span style="color:#ef5350">▼MAX ${{pm}}%</span>` +
+          ` <span style="color:#22d68a">▲MIN +${{pl}}%</span>`;
+      }}
     }}
+  }}
+}});
 
-    function setR(days) {{
-        const d = sC.data();
-        if(!d.length) return;
-        const last = d[d.length-1].time;
-        cP.timeScale().setVisibleRange({{ from: last - (days*86400), to: last + 86400 }});
+// ── Time range sync via logical range (avoids infinite loop) ──────────────────
+let _syncLock = false;
+function makeSyncHandler(src) {{
+  return () => {{
+    if (_syncLock) return;
+    _syncLock = true;
+    try {{
+      const lr = src.timeScale().getVisibleLogicalRange();
+      if (lr) allCharts.filter(c=>c!==src).forEach(c=>c.timeScale().setVisibleLogicalRange(lr));
+    }} finally {{
+      _syncLock = false;
     }}
+  }};
+}}
+allCharts.forEach(c => c.timeScale().subscribeVisibleLogicalRangeChange(makeSyncHandler(c)));
 
-    window.addEventListener('resize', () => charts.forEach(c => c.applyOptions({{ width: window.innerWidth }})));
-    setIv('D');
-    </script></body></html>"""
+// ── Period buttons ─────────────────────────────────────────────────────────────
+function setRange(days) {{
+  document.querySelectorAll('.pb[onclick*="setRange"]').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  curRange = days;
+  applyRange(days);
+}}
+
+function applyRange(days) {{
+  const src = DATA[curInterval].candle;
+  if (!src.length) return;
+  if (days >= 99999) {{ allCharts.forEach(c=>c.timeScale().fitContent()); return; }}
+  const last = src[src.length-1].time;
+  const from = last - days*86400;
+  // Use cP as source; sync handler will propagate to others
+  _syncLock = false;
+  cP.timeScale().setVisibleRange({{from, to: last + 86400}});
+}}
+
+// ── Interval buttons ──────────────────────────────────────────────────────────
+function setInterval(iv) {{
+  ['ibD','ibW','ibM'].forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById('ib'+iv).classList.add('active');
+  loadData(iv);
+  // Re-apply the current period range after switching interval
+  setTimeout(() => setRangeSilent(curRange), 50);
+}}
+
+function setRangeSilent(days) {{
+  applyRange(days);
+}}
+
+// ── Toggle type / log ─────────────────────────────────────────────────────────
+function toggleType() {{
+  showCandle = !showCandle;
+  sCand.applyOptions({{visible: showCandle}});
+  sLine.applyOptions({{visible: !showCandle}});
+  document.getElementById('btn_type').textContent = showCandle ? 'Line' : 'Candle';
+}}
+
+function toggleLog() {{
+  logMode = !logMode;
+  cP.applyOptions({{rightPriceScale:{{mode: logMode?1:0}}}});
+  document.getElementById('btn_log').classList.toggle('active', logMode);
+}}
+
+function resetZoom() {{ allCharts.forEach(c=>c.timeScale().fitContent()); }}
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {{
+  const nw = Math.max(window.innerWidth, 400);
+  allCharts.forEach(c => c.applyOptions({{width:nw}}));
+}});
+
+// ── Init: show 1Y ────────────────────────────────────────────────────────────
+setTimeout(() => setRangeSilent(365), 200);
+</script></body></html>"""
+
     return html, total_h
+
 
 # ─── 1b. Matplotlib fallback (used when plotly not installed) ──────────────────
 def make_price_chart(ticker, start):
