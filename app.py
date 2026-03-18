@@ -366,8 +366,128 @@ def fetch_all(ticker):
 EMA_W=[25,75,200]; EMA_C=['deeppink','limegreen','grey']; EMA_L=['EMA 25','EMA 75','EMA 200']
 
 def make_tv_chart(ticker):
-    # ... [Keep your existing Data Fetching and Serializer logic here] ...
-    # Ensure you have d_candle, d_rsi, d_vol, etc. defined as in your original script
+    """
+    TradingView Lightweight Charts — full interactive chart.
+    Daily / Weekly / Monthly intervals.
+    Panes: Price+EMAs | RSI | Volume | P/BV
+    Period buttons, crosshair sync, zoom/pan, log scale.
+    """
+    import json
+
+    d = fetch_all(ticker)
+    raw = d['price'].copy()
+    if raw.empty:
+        return f"<div style='color:#ef5350;padding:24px'>No price data for {ticker}</div>", 200
+
+    raw.index = strip_tz(raw.index)
+    raw = raw.sort_index()
+
+    # ── Compute EMAs and RSI on full daily history ──────────────────────────────
+    close_d = raw['Close']
+    ema25_d  = close_d.ewm(span=25,  adjust=False).mean()
+    ema75_d  = close_d.ewm(span=75,  adjust=False).mean()
+    ema200_d = close_d.ewm(span=200, adjust=False).mean()
+    rsi_d    = calc_rsi(close_d)
+
+    # ── Resample to Weekly and Monthly ─────────────────────────────────────────
+    def resample_ohlcv(df, rule):
+        r = df.resample(rule).agg(
+            Open=('Open','first'), High=('High','max'),
+            Low=('Low','min'),   Close=('Close','last'), Volume=('Volume','sum')
+        ).dropna()
+        # recompute EMA/RSI on resampled close
+        c = r['Close']
+        r['ema25']  = c.ewm(span=25,  adjust=False).mean()
+        r['ema75']  = c.ewm(span=75,  adjust=False).mean()
+        r['ema200'] = c.ewm(span=200, adjust=False).mean()
+        r['rsi']    = calc_rsi(c)
+        return r
+
+    raw_with_ema = raw.copy()
+    raw_with_ema['ema25']  = ema25_d
+    raw_with_ema['ema75']  = ema75_d
+    raw_with_ema['ema200'] = ema200_d
+    raw_with_ema['rsi']    = rsi_d
+    week_df  = resample_ohlcv(raw, 'W-FRI')
+    month_df = resample_ohlcv(raw, 'ME')
+
+    # ── P/BV historical series ─────────────────────────────────────────────────
+    pbv_series = pd.Series(dtype=float)
+    try:
+        bal   = d['balance']
+        info  = d['info']
+        equity = safe_row(bal, 'Stockholders Equity', 'Total Equity Gross Minority Interest')
+        shares = info.get('sharesOutstanding') or info.get('impliedSharesOutstanding')
+        if not equity.empty and shares and shares > 0:
+            # equity index is annual; interpolate to daily
+            equity_daily = equity.reindex(
+                equity.index.union(close_d.index)
+            ).sort_index().interpolate(method='time').reindex(close_d.index)
+            bvps = equity_daily / float(shares)
+            pbv_series = (close_d / bvps).replace([np.inf, -np.inf], np.nan).dropna()
+    except Exception:
+        pass
+
+    # ── Serialisers ────────────────────────────────────────────────────────────
+    def candles(df):
+        return [{"time": int(t.timestamp()),
+                 "open":  round(float(r['Open']),  3),
+                 "high":  round(float(r['High']),  3),
+                 "low":   round(float(r['Low']),   3),
+                 "close": round(float(r['Close']), 3)}
+                for t, r in df.iterrows()
+                if not any(pd.isna(r[c]) for c in ['Open','High','Low','Close'])]
+
+    def series(s):
+        return [{"time": int(t.timestamp()), "value": round(float(v), 4)}
+                for t, v in s.items() if not pd.isna(v)]
+
+    def vols(df):
+        return [{"time": int(t.timestamp()),
+                 "value": float(r['Volume']),
+                 "color": "#22d68a55" if r['Close'] >= r['Open'] else "#ff556655"}
+                for t, r in df.iterrows() if not pd.isna(r['Volume'])]
+
+    # daily
+    d_candle = json.dumps(candles(raw))
+    d_line   = json.dumps(series(close_d))
+    d_e25    = json.dumps(series(ema25_d))
+    d_e75    = json.dumps(series(ema75_d))
+    d_e200   = json.dumps(series(ema200_d))
+    d_rsi    = json.dumps(series(rsi_d))
+    d_vol    = json.dumps(vols(raw))
+    # weekly
+    w_candle = json.dumps(candles(week_df))
+    w_line   = json.dumps(series(week_df['Close']))
+    w_e25    = json.dumps(series(week_df['ema25']))
+    w_e75    = json.dumps(series(week_df['ema75']))
+    w_e200   = json.dumps(series(week_df['ema200']))
+    w_rsi    = json.dumps(series(week_df['rsi']))
+    w_vol    = json.dumps(vols(week_df))
+    # monthly
+    m_candle = json.dumps(candles(month_df))
+    m_line   = json.dumps(series(month_df['Close']))
+    m_e25    = json.dumps(series(month_df['ema25']))
+    m_e75    = json.dumps(series(month_df['ema75']))
+    m_e200   = json.dumps(series(month_df['ema200']))
+    m_rsi    = json.dumps(series(month_df['rsi']))
+    m_vol    = json.dumps(vols(month_df))
+    # P/BV
+    pbv_data = json.dumps(series(pbv_series))
+
+    # ── Header stats (full history) ────────────────────────────────────────────
+    ep   = float(close_d.iloc[-1])
+    fmax = (ep - float(close_d.max())) / float(close_d.max()) * 100
+    fmin = (ep - float(close_d.min())) / float(close_d.min()) * 100
+    dy   = trailing_div_yield(d['divs'], d['price'])
+    dy_txt = f" · Div {dy:.2f}%" if dy else ""
+    base  = ticker.replace('.BK', '')
+    has_pbv = len(pbv_series) > 0
+    pbv_h   = 110 if has_pbv else 0
+    title   = f"{base} · {ep:.2f} THB · ▼ from MAX {fmax:.1f}% · ▲ from MIN +{fmin:.1f}%{dy_txt}"
+
+    PH, RH, VH, BH = 400, 130, 100, pbv_h
+    total_h = PH + RH + VH + BH + 82  # 82 = header+legend+toolbar
 
     html = f"""<!DOCTYPE html><html>
 <head>
@@ -504,7 +624,6 @@ window.addEventListener('resize', () => {{
 }});
 </script></body></html>"""
     return html, total_h
-
 
 # ─── 1b. Matplotlib fallback (used when plotly not installed) ──────────────────
 def make_price_chart(ticker, start):
