@@ -588,6 +588,32 @@ const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkO
 const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts(VH));
 {'const cB = LightweightCharts.createChart(document.getElementById("p-pbv"), mkOpts(BH));' if has_pbv else 'const cB = null;'}
 
+const allCharts = [cP, cR, cV].concat(cB ? [cB] : []);
+
+let _syncLock = false;
+
+function syncTime(source) {
+  if (_syncLock) return;
+  _syncLock = true;
+
+  const range = source.timeScale().getVisibleRange();
+  if (!range) {
+    _syncLock = false;
+    return;
+  }
+
+  allCharts.forEach(c => {
+    if (c !== source) {
+      c.timeScale().setVisibleRange(range);
+    }
+  });
+
+  _syncLock = false;
+}
+
+allCharts.forEach(c => {
+  c.timeScale().subscribeVisibleTimeRangeChange(() => syncTime(c));
+});
 // ── Series ────────────────────────────────────────────────────────────────────
 const sCand = cP.addCandlestickSeries({{
   upColor:C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn
@@ -703,13 +729,19 @@ function applyRange(days) {{
 }}
 
 // ── Interval buttons ──────────────────────────────────────────────────────────
-function setInterval(iv) {{
+function setInterval(iv) {
   ['ibD','ibW','ibM'].forEach(id => document.getElementById(id).classList.remove('active'));
   document.getElementById('ib'+iv).classList.add('active');
+
+  curInterval = iv;
+
   loadData(iv);
-  // Re-apply the current period range after switching interval
-  setTimeout(() => setRangeSilent(curRange), 50);
-}}
+
+  // force apply AFTER data is definitely ready
+  setTimeout(() => {
+    applyRange(curRange);
+  }, 300);
+}
 
 function setRangeSilent(days) {{
   applyRange(days);
@@ -738,7 +770,11 @@ window.addEventListener('resize', () => {{
 }});
 
 // ── Init: show 1Y ────────────────────────────────────────────────────────────
-setTimeout(() => setRangeSilent(365), 200);
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    applyRange(365);
+  }, 400);
+});
 </script></body></html>"""
 
     return html, total_h
