@@ -495,158 +495,185 @@ def make_tv_chart(ticker):
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
     * {{ box-sizing:border-box; margin:0; padding:0; }}
-    body {{ background:#0b1120; font-family: -apple-system, system-ui, sans-serif; overflow:hidden; color: #8ba8cc; }}
-    #hdr {{ padding:10px 15px; color:#dce9ff; font-size:14px; font-weight:600; background:#0f172a; border-bottom:1px solid #1e293b; }}
-    #stats {{ padding:5px 15px; font-size:12px; height: 25px; background:#0f172a; }}
-    .pane {{ width:100%; border-bottom: 1px solid #1e293b; }}
-    .toolbar {{ display:flex; gap:5px; padding:8px 15px; background:#0f172a; align-items:center; }}
-    .pb {{ background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px; }}
-    .pb:hover {{ background:#334155; color:#f8fafc; }}
-    .pb.active {{ background:#38bdf8; border-color:#38bdf8; color:#0f172a; font-weight:bold; }}
-    .sep {{ width:1px; height:16px; background:#334155; margin:0 5px; }}
+    body {{ background:#0b0e14; font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif; overflow:hidden; }}
+    
+    /* Pane Legend Overlays */
+    .pane-container {{ position: relative; width: 100%; border-bottom: 1px solid #2a2e39; }}
+    .legend {{ 
+        position: absolute; top: 10px; left: 10px; z-index: 2; 
+        font-size: 12px; color: #d1d4dc; pointer-events: none;
+        display: flex; gap: 8px; font-variant-numeric: tabular-nums;
+    }}
+    .legend b {{ color: #ef5350; font-weight: normal; }}
+    .legend span {{ color: #787b86; }}
+
+    .toolbar {{ display:flex; gap:4px; padding:6px 12px; background:#131722; align-items:center; border-top: 1px solid #2a2e39; }}
+    .pb {{ background:transparent; border:none; color:#b2b5be; padding:4px 8px; border-radius:3px; cursor:pointer; font-size:12px; font-weight: 500; }}
+    .pb:hover {{ background: #2a2e39; color: #f0f3fa; }}
+    .pb.active {{ color: #2962ff; background: rgba(41, 98, 255, 0.08); }}
+    .sep {{ width: 1px; height: 18px; background: #2a2e39; margin: 0 4px; }}
 </style>
 </head>
 <body>
-<div id="hdr">{title}</div>
-<div id="stats"><span id="ohlc"></span><span id="pct"></span></div>
-<div id="p-price" class="pane"></div>
-<div id="p-rsi"   class="pane"></div>
-<div id="p-vol"   class="pane"></div>
-{'<div id="p-pbv" class="pane"></div>' if has_pbv else ''}
+
+<div class="pane-container" id="cont-price">
+    <div class="legend" id="leg-price"><span>{base}</span> <div id="val-price"></div></div>
+    <div id="p-price"></div>
+</div>
+
+<div class="pane-container" id="cont-rsi">
+    <div class="legend"><span>RSI 14</span> <div id="val-rsi"></div></div>
+    <div id="p-rsi"></div>
+</div>
+
+<div class="pane-container" id="cont-vol">
+    <div class="legend"><span>Vol</span> <div id="val-vol"></div></div>
+    <div id="p-vol"></div>
+</div>
+
+{f'''<div class="pane-container" id="cont-pbv">
+    <div class="legend"><span>P/B Ratio</span> <div id="val-pbv"></div></div>
+    <div id="p-pbv"></div>
+</div>''' if has_pbv else ''}
+
 <div class="toolbar">
-  <button class="pb" onclick="setRange(90)">3M</button>
-  <button class="pb" onclick="setRange(180)">6M</button>
-  <button class="pb active" id="btn1y" onclick="setRange(365)">1Y</button>
-  <button class="pb" onclick="setRange(1825)">5Y</button>
-  <div class="sep"></div>
-  <button class="pb active" id="ibD" onclick="setInterval('D')">D</button>
-  <button class="pb" id="ibW" onclick="setInterval('W')">W</button>
-  <button class="pb" id="ibM" onclick="setInterval('M')">M</button>
-  <div class="sep"></div>
-  <button class="pb" id="btn_type" onclick="toggleType()">Line</button>
-  <button class="pb" id="btn_log" onclick="toggleLog()">Log</button>
+    <button class="pb" onclick="setRange(90)">3M</button>
+    <button class="pb active" id="btn1y" onclick="setRange(365)">1Y</button>
+    <button class="pb" onclick="setRange(1825)">5Y</button>
+    <div class="sep"></div>
+    <button class="pb active" id="ibD" onclick="setIv('D')">D</button>
+    <button class="pb" id="ibW" onclick="setIv('W')">W</button>
+    <button class="pb" id="ibM" onclick="setIv('M')">M</button>
+    <div class="sep"></div>
+    <button class="pb" id="btn_type" onclick="toggleType()">Line</button>
 </div>
 
 <script>
-const C = {{ bg:'#0b1120', grid:'#1e293b', up:'#22d68a', dn:'#ff5566', e25:'#ff69b4', e75:'#00e676', e200:'#94a3b8', rsi:'#818cf8', txt:'#94a3b8' }};
-
-// Data Mapping from Python
-const DATA = {{
-  D: {{ candle:{d_candle}, line:{d_line}, e25:{d_e25}, e75:{d_e75}, e200:{d_e200}, rsi:{d_rsi}, vol:{d_vol} }},
-  W: {{ candle:{w_candle}, line:{w_line}, e25:{w_e25}, e75:{w_e75}, e200:{w_e200}, rsi:{w_rsi}, vol:{w_vol} }},
-  M: {{ candle:{m_candle}, line:{m_line}, e25:{m_e25}, e75:{m_e75}, e200:{m_e200}, rsi:{m_rsi}, vol:{m_vol} }}
+const C = {{ 
+    bg:'#0b0e14', grid:'#1e222d', up:'#26a69a', dn:'#ef5350', 
+    e25:'#f23645', e75:'#2962ff', e200:'#9598a1', rsi:'#7e57c2', txt:'#d1d4dc' 
 }};
-const pbvData = {pbv_data};
 
-let curInterval = 'D', showCandle = true, logMode = false;
+const DATA = {{
+    D: {{ candle:{d_candle}, e25:{d_e25}, rsi:{d_rsi}, vol:{d_vol} }},
+    W: {{ candle:{w_candle}, e25:{w_e25}, rsi:{w_rsi}, vol:{w_vol} }},
+    M: {{ candle:{m_candle}, e25:{m_e25}, rsi:{m_rsi}, vol:{m_vol} }}
+}};
 
-const mkOpts = (h) => ({{
-    width: window.innerWidth, height: h,
-    layout: {{ background: {{ color: C.bg }}, textColor: C.txt, fontSize: 11 }},
-    grid: {{ vertLines: {{ color: C.grid }}, horzLines: {{ color: C.grid }} }},
-    timeScale: {{ borderColor: C.grid, visible: false }}, 
-    rightPriceScale: {{ borderColor: C.grid, autoScale: true, alignLabels: true }},
-    crosshair: {{ mode: 0 }},
-    handleScroll: {{ vertTouchDrag: false }},
+const chartConfigs = [
+    {{ id:'p-price', h:{PH}, type:'main' }},
+    {{ id:'p-rsi',   h:{RH}, type:'rsi' }},
+    {{ id:'p-vol',   h:{VH}, type:'vol' }}
+];
+if ({'true' if has_pbv else 'false'}) chartConfigs.push({{ id:'p-pbv', h:{BH}, type:'pbv' }});
+
+const charts = [];
+const series = {{}};
+
+// Initialize all charts
+chartConfigs.forEach((conf, idx) => {{
+    const chart = LightweightCharts.createChart(document.getElementById(conf.id), {{
+        width: window.innerWidth,
+        height: conf.h,
+        layout: {{ background: {{ color: C.bg }}, textColor: C.txt, fontSize: 11 }},
+        grid: {{ vertLines: {{ color: C.grid }}, horzLines: {{ color: C.grid }} }},
+        timeScale: {{ 
+            visible: idx === chartConfigs.length - 1,
+            borderColor: '#2a2e39',
+        }},
+        rightPriceScale: {{ 
+            borderColor: '#2a2e39',
+            minimumWidth: 80, // CRITICAL: Perfect alignment lock
+        }},
+        crosshair: {{ mode: 0 }},
+        handleScroll: true,
+        handleScale: true,
+    }});
+    charts.push(chart);
+
+    if (conf.type === 'main') {{
+        series.cand = chart.addCandlestickSeries({{ upColor:C.up, downColor:C.up, borderVisible:false, wickUpColor:C.up, wickDownColor:C.dn, borderDownColor:C.dn, downColor:C.dn }});
+        series.e25 = chart.addLineSeries({{ color:C.e25, lineWidth:1, priceLineVisible:false, lastValueVisible:false }});
+    }} else if (conf.type === 'rsi') {{
+        series.rsi = chart.addLineSeries({{ color:C.rsi, lineWidth:2 }});
+        series.rsi.createPriceLine({{ price: 70, color: '#363a45', lineStyle: 2, axisLabelVisible: true }});
+        series.rsi.createPriceLine({{ price: 30, color: '#363a45', lineStyle: 2, axisLabelVisible: true }});
+    }} else if (conf.type === 'vol') {{
+        series.vol = chart.addHistogramSeries({{ color: '#26a69a', priceFormat: {{ type: 'volume' }} }});
+    }} else if (conf.type === 'pbv') {{
+        series.pbv = chart.addLineSeries({{ color: '#f5c842', lineWidth: 1.5 }});
+        series.pbv.setData({pbv_data});
+    }}
 }});
 
-// 1. Initialize Charts
-const cP = LightweightCharts.createChart(document.getElementById('p-price'), mkOpts({PH}));
-const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkOpts({RH}));
-const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts({VH}));
-const charts = [cP, cR, cV];
-
-let cB = null;
-if (document.getElementById('p-pbv')) {{
-    cB = LightweightCharts.createChart(document.getElementById('p-pbv'), mkOpts({BH}));
-    charts.push(cB);
-}}
-
-// Only show timescale on the bottom-most chart
-charts[charts.length - 1].applyOptions({{ timeScale: {{ visible: true }} }});
-
-// 2. Alignment Fix: Force consistent Y-axis width
+// SYNC 1: Time Scales
 charts.forEach(chart => {{
-    chart.priceScale('right').applyOptions({{ minimumWidth: 80 }});
-}});
-
-// 3. Series Setup
-const sCand = cP.addCandlestickSeries({{ upColor:C.up, downColor:C.dn, borderVisible:false, wickUpColor:C.up, wickDownColor:C.dn }});
-const sLine = cP.addLineSeries({{ color:C.up, lineWidth:2, visible:false }});
-const sE25 = cP.addLineSeries({{ color:C.e25, lineWidth:1, title:'EMA 25', lastValueVisible: false, priceLineVisible: false }});
-const sE75 = cP.addLineSeries({{ color:C.e75, lineWidth:1, title:'EMA 75', lastValueVisible: false, priceLineVisible: false }});
-const sE200 = cP.addLineSeries({{ color:C.e200, lineWidth:1, title:'EMA 200', lastValueVisible: false, priceLineVisible: false }});
-const sRsi = cR.addLineSeries({{ color:C.rsi, lineWidth:1.5 }});
-const sVol = cV.addHistogramSeries({{ color: '#33415555' }});
-let sPbv = cB ? cB.addLineSeries({{ color: '#f5c842', lineWidth: 1.5, title: 'P/BV' }}) : null;
-
-// 4. Sync Time Scales via Logical Range
-charts.forEach(c => {{
-    c.timeScale().subscribeVisibleLogicalRangeChange(range => {{
-        charts.filter(other => other !== c).forEach(other => other.timeScale().setVisibleLogicalRange(range));
+    chart.timeScale().subscribeVisibleLogicalRangeChange(range => {{
+        charts.forEach(other => {{ if (other !== chart) other.timeScale().setVisibleLogicalRange(range); }});
     }});
 }});
 
-// 5. Crosshair & Stats Sync
-cP.subscribeCrosshairMove(param => {{
-    if (!param.time) return;
-    const data = param.seriesData.get(sCand) || param.seriesData.get(sLine);
-    if (data) {{
-        document.getElementById('ohlc').innerHTML = `O <span style="color:${{C.up}}">${{data.open?.toFixed(2)}}</span> H <span style="color:${{C.up}}">${{data.high?.toFixed(2)}}</span> L <span style="color:${{C.dn}}">${{data.low?.toFixed(2)}}</span> C <span style="color:${{data.close >= data.open ? C.up : C.dn}}">${{data.close?.toFixed(2)}}</span>`;
+// SYNC 2: Crosshair and Legend
+charts[0].subscribeCrosshairMove(param => {{
+    if (!param.time) {{
+        document.querySelectorAll('[id^="val-"]').forEach(el => el.innerHTML = "");
+        charts.forEach(c => c.clearCrosshairPosition());
+        return;
     }}
-    // Move crosshair on other charts
-    charts.filter(c => c !== cP).forEach(c => c.setCrosshairPosition(0, param.time, sRsi));
+    
+    // Sync other charts
+    charts.slice(1).forEach(c => c.setCrosshairPosition(0, param.time, series.rsi));
+
+    // Update Price Legend
+    const d = param.seriesData.get(series.cand);
+    if (d) {{
+        const col = d.close >= d.open ? C.up : C.dn;
+        document.getElementById('val-price').innerHTML = 
+            `O<b style="color:${{col}}">${{d.open.toFixed(2)}}</b> ` +
+            `H<b style="color:${{col}}">${{d.high.toFixed(2)}}</b> ` +
+            `L<b style="color:${{col}}">${{d.low.toFixed(2)}}</b> ` +
+            `C<b style="color:${{col}}">${{d.close.toFixed(2)}}</b>`;
+    }}
+
+    // Update RSI Legend
+    const r = param.seriesData.get(series.rsi);
+    if (r) document.getElementById('val-rsi').innerHTML = `<b style="color:${{C.rsi}}">${{r.value.toFixed(2)}}</b>`;
+    
+    // Update Volume Legend
+    const v = param.seriesData.get(series.vol);
+    if (v) document.getElementById('val-vol').innerHTML = `<b style="color:#d1d4dc">${{(v.value/1e6).toFixed(2)}}M</b>`;
 }});
 
-function loadData(iv) {{
+function setIv(iv) {{
     const d = DATA[iv];
-    sCand.setData(d.candle);
-    sLine.setData(d.line);
-    sE25.setData(d.e25);
-    sE75.setData(d.e75);
-    sE200.setData(d.e200);
-    sRsi.setData(d.rsi);
-    sVol.setData(d.vol);
-    if (sPbv) sPbv.setData(pbvData);
+    series.cand.setData(d.candle);
+    series.e25.setData(d.e25);
+    series.rsi.setData(d.rsi);
+    series.vol.setData(d.vol);
     
-    // Auto-fit and apply default 1Y view
+    document.querySelectorAll('.pb[id^="ib"]').forEach(b => b.classList.remove('active'));
+    document.getElementById('ib'+iv).classList.add('active');
     setTimeout(() => setRange(365), 50);
 }}
 
 function setRange(days) {{
-    const candleData = DATA[curInterval].candle;
-    if (!candleData.length) return;
-    const lastBar = candleData[candleData.length - 1].time;
-    cP.timeScale().setVisibleRange({{ from: lastBar - (days * 86400), to: lastBar + 86400 }});
-}}
-
-function setInterval(iv) {{
-    curInterval = iv;
-    ['ibD','ibW','ibM'].forEach(id => document.getElementById(id).classList.remove('active'));
-    document.getElementById('ib'+iv).classList.add('active');
-    loadData(iv);
-}}
-
-function toggleLog() {{
-    logMode = !logMode;
-    cP.applyOptions({{ rightPriceScale: {{ mode: logMode ? 1 : 0 }} }});
-    document.getElementById('btn_log').classList.toggle('active', logMode);
+    const d = series.cand.data();
+    if (!d.length) return;
+    const last = d[d.length-1].time;
+    charts[0].timeScale().setVisibleRange({{ from: last - (days * 86400), to: last + 86400 }});
 }}
 
 function toggleType() {{
-    showCandle = !showCandle;
-    sCand.applyOptions({{ visible: showCandle }});
-    sLine.applyOptions({{ visible: !showCandle }});
-    document.getElementById('btn_type').textContent = showCandle ? 'Line' : 'Candle';
+    const show = series.cand.options().visible;
+    series.cand.applyOptions({{ visible: !show }});
+    document.getElementById('btn_type').textContent = !show ? 'Line' : 'Candle';
 }}
 
 window.addEventListener('resize', () => {{
     charts.forEach(c => c.applyOptions({{ width: window.innerWidth }}));
 }});
 
-// Initial Load
-loadData('D');
-
+setIv('D');
 </script></body></html>"""
     return html, total_h
 
