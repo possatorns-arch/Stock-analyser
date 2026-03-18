@@ -599,7 +599,7 @@ const sE200 = cP.addLineSeries({{ color:C.e200, lineWidth:1, priceLineVisible:fa
 const sRsi  = cR.addLineSeries({{ color:C.rsi, lineWidth:1.5, priceLineVisible:false }});
 [{{p:70,c:C.rsiOB,s:1}},{{p:50,c:'#222',s:2}},{{p:30,c:C.rsiOS,s:1}}].forEach(l=>
   sRsi.createPriceLine({{price:l.p,color:l.c,lineStyle:l.s,lineWidth:1,axisLabelVisible:true}}));
-cR.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.05,bottom:0.05}},mode:0}}}});
+cR.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0.1}},mode:0}}}});
 const sVol  = cV.addHistogramSeries({{ priceFormat:{{type:'volume'}} }});
 cV.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0}}}}}});
 let sPbv = null;
