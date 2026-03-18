@@ -489,7 +489,7 @@ def make_tv_chart(ticker):
     PH, RH, VH, BH = 400, 130, 100, pbv_h
     total_h = PH + RH + VH + BH + 82  # 82 = header+legend+toolbar
 
-    html = """<!DOCTYPE html><html>
+    html = f"""<!DOCTYPE html><html>
 <head>
 <meta charset="utf-8">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -587,33 +587,6 @@ const cP = LightweightCharts.createChart(document.getElementById('p-price'), mkO
 const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkOpts(RH));
 const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts(VH));
 {'const cB = LightweightCharts.createChart(document.getElementById("p-pbv"), mkOpts(BH));' if has_pbv else 'const cB = null;'}
-
-const allCharts = [cP, cR, cV].concat(cB ? [cB] : []);
-
-let _syncLock = false;
-
-function syncTime(source) {{
-  if (_syncLock) return;
-  _syncLock = true;
-
-  const range = source.timeScale().getVisibleRange();
-  if (!range) {{
-    _syncLock = false;
-    return;
-  }}
-
-  allCharts.forEach(c => {{
-    if (c !== source) {{
-      c.timeScale().setVisibleRange(range);
-    }}
-  }});
-
-  _syncLock = false;
-}}
-
-allCharts.forEach(c => {{
-  c.timeScale().subscribeVisibleTimeRangeChange(() => syncTime(c));
-}});
 
 // ── Series ────────────────────────────────────────────────────────────────────
 const sCand = cP.addCandlestickSeries({{
@@ -730,19 +703,13 @@ function applyRange(days) {{
 }}
 
 // ── Interval buttons ──────────────────────────────────────────────────────────
-function setInterval(iv) {
+function setInterval(iv) {{
   ['ibD','ibW','ibM'].forEach(id => document.getElementById(id).classList.remove('active'));
   document.getElementById('ib'+iv).classList.add('active');
-
-  curInterval = iv;
-
   loadData(iv);
-
-  // force apply AFTER data is definitely ready
-  setTimeout(() => {
-    applyRange(curRange);
-  }, 300);
-}
+  // Re-apply the current period range after switching interval
+  setTimeout(() => setRangeSilent(curRange), 50);
+}}
 
 function setRangeSilent(days) {{
   applyRange(days);
@@ -771,11 +738,7 @@ window.addEventListener('resize', () => {{
 }});
 
 // ── Init: show 1Y ────────────────────────────────────────────────────────────
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    applyRange(365);
-  }, 400);
-});
+setTimeout(() => setRangeSilent(365), 200);
 </script></body></html>"""
 
     return html, total_h
