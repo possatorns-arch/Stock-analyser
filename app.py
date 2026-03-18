@@ -592,28 +592,29 @@ const allCharts = [cP, cR, cV].concat(cB ? [cB] : []);
 
 let _syncLock = false;
 
-function syncTime(source) {
+function syncTime(source) {{
   if (_syncLock) return;
   _syncLock = true;
 
   const range = source.timeScale().getVisibleRange();
-  if (!range) {
+  if (!range) {{
     _syncLock = false;
     return;
-  }
+  }}
 
-  allCharts.forEach(c => {
-    if (c !== source) {
+  allCharts.forEach(c => {{
+    if (c !== source) {{
       c.timeScale().setVisibleRange(range);
-    }
-  });
+    }}
+  }});
 
   _syncLock = false;
-}
+}}
 
-allCharts.forEach(c => {
+allCharts.forEach(c => {{
   c.timeScale().subscribeVisibleTimeRangeChange(() => syncTime(c));
-});
+}});
+
 // ── Series ────────────────────────────────────────────────────────────────────
 const sCand = cP.addCandlestickSeries({{
   upColor:C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn
