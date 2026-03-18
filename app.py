@@ -366,15 +366,11 @@ def fetch_all(ticker):
 EMA_W=[25,75,200]; EMA_C=['deeppink','limegreen','grey']; EMA_L=['EMA 25','EMA 75','EMA 200']
 
 def make_tv_chart(ticker):
-    """
-    Final, Synchronized TradingView-style Multi-Pane Chart.
-    Fixes: Alignment, Drift, Thin Candles, and Legend Sync.
-    """
     import json
     import numpy as np
     import pandas as pd
 
-    # 1. DATA FETCHING (Assumes your existing helper functions exist)
+    # 1. Fetch Data
     d = fetch_all(ticker)
     raw = d['price'].copy()
     if raw.empty:
@@ -382,165 +378,144 @@ def make_tv_chart(ticker):
 
     raw.index = strip_tz(raw.index)
     raw = raw.sort_index()
-    close_d = raw['Close']
     
-    # Indicators
-    ema25_d = close_d.ewm(span=25, adjust=False).mean()
-    rsi_d = calc_rsi(close_d)
-
-    # Resampling Logic
-    def resample_ohlcv(df, rule):
-        r = df.resample(rule).agg({
-            'Open':'first', 'High':'max', 'Low':'min', 'Close':'last', 'Volume':'sum'
-        }).dropna()
-        c = r['Close']
-        r['ema25'] = c.ewm(span=25, adjust=False).mean()
-        r['rsi'] = calc_rsi(c)
-        return r
-
-    week_df = resample_ohlcv(raw, 'W-FRI')
-    month_df = resample_ohlcv(raw, 'ME')
-
-    # P/BV Logic
-    pbv_series = pd.Series(dtype=float)
+    # 2. ALIGN ALL DATA TO THE PRICE INDEX (Crucial for vertical alignment)
+    full_idx = raw.index
+    
+    # Calculate indicators
+    ema25 = raw['Close'].ewm(span=25, adjust=False).mean().reindex(full_idx)
+    rsi = calc_rsi(raw['Close']).reindex(full_idx)
+    
+    # P/BV Alignment
+    pbv_series = pd.Series(index=full_idx, dtype=float)
     try:
-        bal = d['balance']
-        info = d['info']
+        bal, info = d['balance'], d['info']
         equity = safe_row(bal, 'Stockholders Equity', 'Total Equity Gross Minority Interest')
         shares = info.get('sharesOutstanding') or info.get('impliedSharesOutstanding')
         if not equity.empty and shares:
-            equity_daily = equity.reindex(equity.index.union(close_d.index)).sort_index().interpolate(method='time').reindex(close_d.index)
-            pbv_series = (close_d / (equity_daily / float(shares))).replace([np.inf, -np.inf], np.nan).dropna()
+            eq_daily = equity.reindex(equity.index.union(full_idx)).sort_index().interpolate(method='time').reindex(full_idx)
+            pbv_series = (raw['Close'] / (eq_daily / float(shares)))
     except: pass
 
-    # 2. SERIALIZERS
-    def candles(df):
-        return [{"time": int(t.timestamp()), "open": round(float(r['Open']), 2), "high": round(float(r['High']), 2), "low": round(float(r['Low']), 2), "close": round(float(r['Close']), 2)} for t, r in df.iterrows()]
-    def series(s):
-        return [{"time": int(t.timestamp()), "value": round(float(v), 2)} for t, v in s.items() if not pd.isna(v)]
-    def vols(df):
-        return [{"time": int(t.timestamp()), "value": float(r['Volume']), "color": "#26a69a55" if r['Close'] >= r['Open'] else "#ef535055"} for t, r in df.iterrows()]
+    # 3. SERIALIZE (Using the shared index to ensure 1:1 bar mapping)
+    def get_data(df_slice, series_ema, series_rsi, series_pbv):
+        times = [int(t.timestamp()) for t in df_slice.index]
+        return {
+            "c": [{"time": t, "open": r.Open, "high": r.High, "low": r.Low, "close": r.Close} for t, r in zip(times, df_slice.itertuples())],
+            "e": [{"time": t, "value": v} for t, v in zip(times, series_ema) if not pd.isna(v)],
+            "r": [{"time": t, "value": v} for t, v in zip(times, series_rsi) if not pd.isna(v)],
+            "v": [{"time": t, "value": r.Volume, "color": "#26a69a44" if r.Close >= r.Open else "#ef535044"} for t, r in zip(times, df_slice.itertuples())],
+            "b": [{"time": t, "value": v} for t, v in zip(times, series_pbv) if not pd.isna(v)]
+        }
 
-    # Data JSONs
-    d_json = {"c": candles(raw), "e": series(ema25_d), "r": series(rsi_d), "v": vols(raw)}
-    w_json = {"c": candles(week_df), "e": series(week_df['ema25']), "r": series(week_df['rsi']), "v": vols(week_df)}
-    m_json = {"c": candles(month_df), "e": series(month_df['ema25']), "r": series(month_df['rsi']), "v": vols(month_df)}
-    pbv_json = series(pbv_series)
-
-    # 3. LAYOUT CONSTANTS
-    base = ticker.replace('.BK', '')
-    ep = float(close_d.iloc[-1])
-    dy = trailing_div_yield(d['divs'], d['price'])
-    title = f"{base} · {ep:.2f} THB {' · Div ' + str(round(dy,2)) + '%' if dy else ''}"
+    # Prepare Interval Data
+    d_json = get_data(raw, ema25, rsi, pbv_series)
     
-    has_pbv = len(pbv_series) > 0
-    PH, RH, VH, BH = 380, 120, 100, (100 if has_pbv else 0)
-    total_h = PH + RH + VH + BH + 100 
+    # Weekly Resample (Aligning indices here too)
+    w_df = raw.resample('W-FRI').agg({'Open':'first','High':'max','Low':'min','Close':'last','Volume':'sum'}).dropna()
+    w_idx = w_df.index
+    w_json = get_data(w_df, w_df['Close'].ewm(span=25, adjust=False).mean(), calc_rsi(w_df['Close']), pbv_series.reindex(w_idx))
 
-    # 4. THE HTML/JS
-    html = f"""
-    <!DOCTYPE html><html><head><meta charset="utf-8">
+    # Layout Setup
+    base = ticker.replace('.BK', '')
+    has_pbv = not pbv_series.dropna().empty
+    PH, RH, VH, BH = 400, 120, 100, (100 if has_pbv else 0)
+    total_h = PH + RH + VH + BH + 100
+
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8">
     <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{ background: #0b0e14; color: #d1d4dc; font-family: sans-serif; overflow: hidden; }}
         .pane {{ position: relative; width: 100%; border-bottom: 1px solid #2a2e39; }}
-        .legend {{ position: absolute; top: 8px; left: 12px; z-index: 10; font-size: 12px; font-family: monospace; pointer-events: none; display: flex; gap: 8px; }}
-        .legend span {{ color: #787b86; }}
-        .legend b {{ color: #d1d4dc; font-weight: normal; }}
-        .toolbar {{ display: flex; gap: 8px; padding: 8px 12px; background: #131722; align-items: center; }}
-        .pb {{ background: transparent; border: none; color: #b2b5be; padding: 4px 8px; cursor: pointer; font-size: 12px; border-radius: 4px; }}
-        .pb.active {{ color: #2962ff; background: rgba(41, 98, 255, 0.1); font-weight: bold; }}
+        .legend {{ position: absolute; top: 8px; left: 12px; z-index: 10; font-size: 11px; font-family: monospace; pointer-events: none; }}
+        .legend b {{ color: #2962ff; }}
+        .toolbar {{ display: flex; gap: 10px; padding: 8px 15px; background: #131722; align-items: center; }}
+        .pb {{ background: #2a2e39; border: none; color: #b2b5be; padding: 4px 10px; cursor: pointer; font-size: 11px; border-radius: 3px; }}
+        .pb.active {{ background: #2962ff; color: white; }}
     </style></head>
     <body>
-    <div style="padding: 10px 15px; font-size: 14px; font-weight: bold; border-bottom: 1px solid #2a2e39;">{title}</div>
-    
-    <div class="pane" style="height:{PH}px"><div class="legend"><span>{base}</span><div id="v-price"></div></div><div id="p-price" style="height:100%"></div></div>
-    <div class="pane" style="height:{RH}px"><div class="legend"><span>RSI 14</span><div id="v-rsi"></div></div><div id="p-rsi" style="height:100%"></div></div>
-    <div class="pane" style="height:{VH}px"><div class="legend"><span>Volume</span><div id="v-vol"></div></div><div id="p-vol" style="height:100%"></div></div>
-    {f'<div class="pane" style="height:{BH}px"><div class="legend"><span>P/B Ratio</span><div id="v-pbv"></div></div><div id="p-pbv" style="height:100%"></div></div>' if has_pbv else ''}
+    <div class="pane" style="height:{PH}px"><div class="legend">{base} <span id="v-price"></span></div><div id="p-price" style="height:100%"></div></div>
+    <div class="pane" style="height:{RH}px"><div class="legend">RSI 14 <span id="v-rsi"></span></div><div id="p-rsi" style="height:100%"></div></div>
+    <div class="pane" style="height:{VH}px"><div class="legend">Vol <span id="v-vol"></span></div><div id="p-vol" style="height:100%"></div></div>
+    {f'<div class="pane" style="height:{BH}px"><div class="legend">P/B Ratio <span id="v-pbv"></span></div><div id="p-pbv" style="height:100%"></div></div>' if has_pbv else ''}
 
     <div class="toolbar">
-        <button class="pb" onclick="setR(90)">3M</button>
-        <button class="pb active" id="b1y" onclick="setR(365)">1Y</button>
-        <button class="pb" onclick="setR(1825)">5Y</button>
-        <div style="width:1px; height:18px; background:#363a45"></div>
-        <button class="pb active" id="ibD" onclick="setIv('D')">D</button>
-        <button class="pb" id="ibW" onclick="setIv('W')">W</button>
-        <button class="pb" id="ibM" onclick="setIv('M')">M</button>
+        <button class="pb active" id="ibD" onclick="setIv('D')">Daily</button>
+        <button class="pb" id="ibW" onclick="setIv('W')">Weekly</button>
+        <div style="width:1px; height:15px; background:#363a45"></div>
+        <button class="pb" onclick="setR(180)">6M</button>
+        <button class="pb" onclick="setR(365)">1Y</button>
     </div>
 
     <script>
-    const DATA = {{ D: {json.dumps(d_json)}, W: {json.dumps(w_json)}, M: {json.dumps(m_json)} }};
-    const PBV_DATA = {json.dumps(pbv_json)};
-    let curIv = 'D';
-
-    const opt = (hasTime) => ({{
+    const DATA = {{ D: {json.dumps(d_json)}, W: {json.dumps(w_json)} }};
+    const charts = [];
+    const config = (time) => ({{
         width: window.innerWidth,
         layout: {{ background: {{ color: '#0b0e14' }}, textColor: '#d1d4dc', fontSize: 11 }},
         grid: {{ vertLines: {{ color: '#1e222d' }}, horzLines: {{ color: '#1e222d' }} }},
-        rightPriceScale: {{ borderColor: '#2a2e39', minimumWidth: 100 }},
-        timeScale: {{ visible: hasTime, borderColor: '#2a2e39', shiftVisibleRangeOnNewBar: true }},
+        rightPriceScale: {{ borderColor: '#2a2e39', minimumWidth: 110 }},
+        timeScale: {{ visible: time, borderColor: '#2a2e39' }},
         crosshair: {{ mode: 0 }},
-        handleScroll: true, handleScale: true,
     }});
 
-    const cP = LightweightCharts.createChart(document.getElementById('p-price'), opt(false));
-    const cR = LightweightCharts.createChart(document.getElementById('p-rsi'), opt(false));
-    const cV = LightweightCharts.createChart(document.getElementById('p-vol'), opt(!{str(has_pbv).lower()}));
-    const charts = [cP, cR, cV];
+    const cP = LightweightCharts.createChart(document.getElementById('p-price'), config(false));
+    const cR = LightweightCharts.createChart(document.getElementById('p-rsi'), config(false));
+    const cV = LightweightCharts.createChart(document.getElementById('p-vol'), config(!{str(has_pbv).lower()}));
+    charts.push(cP, cR, cV);
 
     let cB = null;
     if (document.getElementById('p-pbv')) {{
-        cB = LightweightCharts.createChart(document.getElementById('p-pbv'), opt(true));
+        cB = LightweightCharts.createChart(document.getElementById('p-pbv'), config(true));
         charts.push(cB);
     }}
 
     const sC = cP.addCandlestickSeries({{ upColor:'#26a69a', downColor:'#ef5350', borderVisible:false, wickUpColor:'#26a69a', wickDownColor:'#ef5350' }});
     const sE = cP.addLineSeries({{ color:'#f23645', lineWidth:1, priceLineVisible:false, lastValueVisible:false }});
     const sR = cR.addLineSeries({{ color:'#7e57c2', lineWidth:2, priceLineVisible:false }});
-    const sV = cV.addHistogramSeries({{ color: '#26a69a55', priceFormat: {{ type: 'volume' }} }});
+    const sV = cV.addHistogramSeries({{ color: '#26a69a' }});
     let sB = cB ? cB.addLineSeries({{ color: '#eab308', lineWidth: 2 }}) : null;
 
-    // SYNC: The "Logical Range" secret sauce
+    // SYNC LOGIC
     charts.forEach(c => {{
         c.timeScale().subscribeVisibleLogicalRangeChange(range => {{
             charts.forEach(other => {{ if(other !== c) other.timeScale().setVisibleLogicalRange(range); }});
         }});
     }});
 
-    // CROSSHAIR & LEGEND
     cP.subscribeCrosshairMove(p => {{
         charts.slice(1).forEach(c => c.setCrosshairPosition(0, p.time, sR));
         if (!p.time) return;
-        const d = p.seriesData.get(sC);
-        if (d) document.getElementById('v-price').innerHTML = `O<b>${{d.open}}</b> H<b>${{d.high}}</b> L<b>${{d.low}}</b> C<b>${{d.close}}</b>`;
-        const r = p.seriesData.get(sR);
-        if (r) document.getElementById('v-rsi').innerHTML = `<b>${{r.value.toFixed(2)}}</b>`;
-        const v = p.seriesData.get(sV);
-        if (v) document.getElementById('v-vol').innerHTML = `<b>${{(v.value/1e6).toFixed(2)}}M</b>`;
+        const d = p.seriesData.get(sC), r = p.seriesData.get(sR), v = p.seriesData.get(sV);
+        if (d) document.getElementById('v-price').innerHTML = ` O:${{d.open}} H:${{d.high}} L:${{d.low}} C:${{d.close}}`;
+        if (r) document.getElementById('v-rsi').innerHTML = ` <b>${{r.value.toFixed(2)}}</b>`;
+        if (v) document.getElementById('v-vol').innerHTML = ` <b>${{(v.value/1e6).toFixed(2)}}M</b>`;
+        if (sB) {{
+            const b = p.seriesData.get(sB);
+            if (b) document.getElementById('v-pbv').innerHTML = ` <b>${{b.value.toFixed(2)}}</b>`;
+        }}
     }});
 
     function setIv(iv) {{
-        curIv = iv;
         const d = DATA[iv];
         sC.setData(d.c); sE.setData(d.e); sR.setData(d.r); sV.setData(d.v);
-        if(sB) sB.setData(PBV_DATA);
-        ['ibD','ibW','ibM'].forEach(id => document.getElementById(id).classList.remove('active'));
+        if(sB) sB.setData(d.b);
+        document.querySelectorAll('.pb[id^="ib"]').forEach(b => b.classList.remove('active'));
         document.getElementById('ib'+iv).classList.add('active');
-        setR(365);
+        cP.timeScale().fitContent();
     }}
 
     function setR(days) {{
-        const d = DATA[curIv].c;
+        const d = sC.data();
+        if(!d.length) return;
         const last = d[d.length-1].time;
-        cP.timeScale().setVisibleRange({{ from: last - (days * 86400), to: last + 86400 }});
+        cP.timeScale().setVisibleRange({{ from: last - (days*86400), to: last + 86400 }});
     }}
 
     window.addEventListener('resize', () => charts.forEach(c => c.applyOptions({{ width: window.innerWidth }})));
     setIv('D');
-    </script></body></html>
-    """
+    </script></body></html>"""
     return html, total_h
 
 # ─── 1b. Matplotlib fallback (used when plotly not installed) ──────────────────
