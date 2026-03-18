@@ -489,7 +489,7 @@ def make_tv_chart(ticker):
     PH, RH, VH, BH = 400, 130, 100, pbv_h
     total_h = PH + RH + VH + BH + 82  # 82 = header+legend+toolbar
 
-    html = f"""<!DOCTYPE html><html>
+    html = """<!DOCTYPE html><html>
 <head>
 <meta charset="utf-8">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
