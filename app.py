@@ -625,63 +625,98 @@ function loadData(interval) {{
 }}
 loadData('D');
 
-// ── Crosshair sync ─────────────────────────────────────────────────────────────
+// ── Crosshair sync with proper grid alignment ─────────────────────────────────────
 const allCharts = [cP, cR, cV, ...(cB?[cB]:[])];
 const seriesMap = new Map([[cR,sRsi],[cV,sVol]]);
 if (cB) seriesMap.set(cB, sPbv);
 
-cP.subscribeCrosshairMove(p => {{
+// Store last synced time to prevent infinite loops
+let lastSyncTime = null;
+
+cP.subscribeCrosshairMove(p => {
   const ts = p.time;
-  [cR,cV,...(cB?[cB]:[])].forEach(c => {{
-    if (ts) c.setCrosshairPosition(0, ts, seriesMap.get(c));
-    else c.clearCrosshairPosition();
-  }});
+  
+  // Only sync if time actually changed
+  if (ts !== lastSyncTime) {
+    lastSyncTime = ts;
+    
+    // Sync crosshair to all other charts with proper series alignment
+    [cR, cV, ...(cB?[cB]:[])].forEach(c => {
+      if (ts) {
+        const targetSeries = seriesMap.get(c);
+        c.setCrosshairPosition(p.point.x, ts, targetSeries);
+      } else {
+        c.clearCrosshairPosition();
+      }
+    });
+  }
+  
   // OHLC legend
-  if (p.seriesData?.has(sCand)) {{
+  if (p.seriesData?.has(sCand)) {
     const d = p.seriesData.get(sCand);
-    if (d) {{
+    if (d) {
       const col = d.close >= d.open ? C.up : C.dn;
       document.getElementById('ohlc').innerHTML =
-        `O:<b style="color:${{col}}">${{d.open?.toFixed(2)}}</b> ` +
-        `H:<b style="color:${{C.up}}">${{d.high?.toFixed(2)}}</b> ` +
-        `L:<b style="color:${{C.dn}}">${{d.low?.toFixed(2)}}</b> ` +
-        `C:<b style="color:${{col}}">${{d.close?.toFixed(2)}}</b>`;
-    }}
-  }}
+        `O:<b style="color:${col}">${d.open?.toFixed(2)}</b> ` +
+        `H:<b style="color:${C.up}">${d.high?.toFixed(2)}</b> ` +
+        `L:<b style="color:${C.dn}">${d.low?.toFixed(2)}</b> ` +
+        `C:<b style="color:${col}">${d.close?.toFixed(2)}</b>`;
+    }
+  }
+  
   // % from MAX/MIN in visible range
-  if (ts) {{
+  if (ts) {
     const vr = cP.timeScale().getVisibleRange();
-    if (vr) {{
+    if (vr) {
       const vis = DATA[curInterval].candle.filter(x => x.time >= vr.from && x.time <= vr.to);
-      if (vis.length > 0) {{
+      if (vis.length > 0) {
         const hi = Math.max(...vis.map(x=>x.high));
         const lo = Math.min(...vis.map(x=>x.low));
         const last = vis[vis.length-1].close;
         const pm = ((last-hi)/hi*100).toFixed(1);
         const pl = ((last-lo)/lo*100).toFixed(1);
         document.getElementById('pct').innerHTML =
-          ` <span style="color:#ef5350">▼MAX ${{pm}}%</span>` +
-          ` <span style="color:#22d68a">▲MIN +${{pl}}%</span>`;
-      }}
-    }}
-  }}
-}});
+          ` <span style="color:#ef5350">▼MAX ${pm}%</span>` +
+          ` <span style="color:#22d68a">▲MIN +${pl}%</span>`;
+      }
+    }
+  }
+});
 
-// ── Time range sync via logical range (avoids infinite loop) ──────────────────
+// ── Time range sync via logical range with debouncing ──────────────────────────────
 let _syncLock = false;
-function makeSyncHandler(src) {{
-  return () => {{
+let _syncTimeout = null;
+
+function makeSyncHandler(src) {
+  return () => {
     if (_syncLock) return;
-    _syncLock = true;
-    try {{
-      const lr = src.timeScale().getVisibleLogicalRange();
-      if (lr) allCharts.filter(c=>c!==src).forEach(c=>c.timeScale().setVisibleLogicalRange(lr));
-    }} finally {{
-      _syncLock = false;
-    }}
-  }};
-}}
-allCharts.forEach(c => c.timeScale().subscribeVisibleLogicalRangeChange(makeSyncHandler(c)));
+    
+    // Debounce sync to prevent excessive updates
+    clearTimeout(_syncTimeout);
+    _syncTimeout = setTimeout(() => {
+      _syncLock = true;
+      try {
+        const lr = src.timeScale().getVisibleLogicalRange();
+        if (lr) {
+          allCharts.filter(c => c !== src).forEach(c => {
+            c.timeScale().setVisibleLogicalRange(lr);
+          });
+        }
+      } finally {
+        _syncLock = false;
+      }
+    }, 10); // 10ms debounce
+  };
+}
+
+allCharts.forEach(c => {
+  c.timeScale().subscribeVisibleLogicalRangeChange(makeSyncHandler(c));
+});
+
+// Force grid line alignment on initial load
+setTimeout(() => {
+  allCharts.forEach(c => c.applyOptions({}));
+}, 100);
 
 // ── Period buttons ─────────────────────────────────────────────────────────────
 function setRange(days) {{
