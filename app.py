@@ -599,7 +599,7 @@ const sE200 = cP.addLineSeries({{ color:C.e200, lineWidth:1, priceLineVisible:fa
 const sRsi  = cR.addLineSeries({{ color:C.rsi, lineWidth:1.5, priceLineVisible:false }});
 [{{p:70,c:C.rsiOB,s:1}},{{p:50,c:'#222',s:2}},{{p:30,c:C.rsiOS,s:1}}].forEach(l=>
   sRsi.createPriceLine({{price:l.p,color:l.c,lineStyle:l.s,lineWidth:1,axisLabelVisible:true}}));
-cR.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0.1}},mode:0}}}});
+cR.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.05,bottom:0.05}},mode:0}}}});
 const sVol  = cV.addHistogramSeries({{ priceFormat:{{type:'volume'}} }});
 cV.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0}}}}}});
 let sPbv = null;
@@ -625,98 +625,63 @@ function loadData(interval) {{
 }}
 loadData('D');
 
-// ── Crosshair sync with proper grid alignment ─────────────────────────────────────
+// ── Crosshair sync ─────────────────────────────────────────────────────────────
 const allCharts = [cP, cR, cV, ...(cB?[cB]:[])];
 const seriesMap = new Map([[cR,sRsi],[cV,sVol]]);
 if (cB) seriesMap.set(cB, sPbv);
 
-// Store last synced time to prevent infinite loops
-let lastSyncTime = null;
-
-cP.subscribeCrosshairMove(p => {
+cP.subscribeCrosshairMove(p => {{
   const ts = p.time;
-  
-  // Only sync if time actually changed
-  if (ts !== lastSyncTime) {
-    lastSyncTime = ts;
-    
-    // Sync crosshair to all other charts with proper series alignment
-    [cR, cV, ...(cB?[cB]:[])].forEach(c => {
-      if (ts) {
-        const targetSeries = seriesMap.get(c);
-        c.setCrosshairPosition(p.point.x, ts, targetSeries);
-      } else {
-        c.clearCrosshairPosition();
-      }
-    });
-  }
-  
+  [cR,cV,...(cB?[cB]:[])].forEach(c => {{
+    if (ts) c.setCrosshairPosition(0, ts, seriesMap.get(c));
+    else c.clearCrosshairPosition();
+  }});
   // OHLC legend
-  if (p.seriesData?.has(sCand)) {
+  if (p.seriesData?.has(sCand)) {{
     const d = p.seriesData.get(sCand);
-    if (d) {
+    if (d) {{
       const col = d.close >= d.open ? C.up : C.dn;
       document.getElementById('ohlc').innerHTML =
-        `O:<b style="color:${col}">${d.open?.toFixed(2)}</b> ` +
-        `H:<b style="color:${C.up}">${d.high?.toFixed(2)}</b> ` +
-        `L:<b style="color:${C.dn}">${d.low?.toFixed(2)}</b> ` +
-        `C:<b style="color:${col}">${d.close?.toFixed(2)}</b>`;
-    }
-  }
-  
+        `O:<b style="color:${{col}}">${{d.open?.toFixed(2)}}</b> ` +
+        `H:<b style="color:${{C.up}}">${{d.high?.toFixed(2)}}</b> ` +
+        `L:<b style="color:${{C.dn}}">${{d.low?.toFixed(2)}}</b> ` +
+        `C:<b style="color:${{col}}">${{d.close?.toFixed(2)}}</b>`;
+    }}
+  }}
   // % from MAX/MIN in visible range
-  if (ts) {
+  if (ts) {{
     const vr = cP.timeScale().getVisibleRange();
-    if (vr) {
+    if (vr) {{
       const vis = DATA[curInterval].candle.filter(x => x.time >= vr.from && x.time <= vr.to);
-      if (vis.length > 0) {
+      if (vis.length > 0) {{
         const hi = Math.max(...vis.map(x=>x.high));
         const lo = Math.min(...vis.map(x=>x.low));
         const last = vis[vis.length-1].close;
         const pm = ((last-hi)/hi*100).toFixed(1);
         const pl = ((last-lo)/lo*100).toFixed(1);
         document.getElementById('pct').innerHTML =
-          ` <span style="color:#ef5350">▼MAX ${pm}%</span>` +
-          ` <span style="color:#22d68a">▲MIN +${pl}%</span>`;
-      }
-    }
-  }
-});
+          ` <span style="color:#ef5350">▼MAX ${{pm}}%</span>` +
+          ` <span style="color:#22d68a">▲MIN +${{pl}}%</span>`;
+      }}
+    }}
+  }}
+}});
 
-// ── Time range sync via logical range with debouncing ──────────────────────────────
+// ── Time range sync via logical range (avoids infinite loop) ──────────────────
 let _syncLock = false;
-let _syncTimeout = null;
-
-function makeSyncHandler(src) {
-  return () => {
+function makeSyncHandler(src) {{
+  return () => {{
     if (_syncLock) return;
-    
-    // Debounce sync to prevent excessive updates
-    clearTimeout(_syncTimeout);
-    _syncTimeout = setTimeout(() => {
-      _syncLock = true;
-      try {
-        const lr = src.timeScale().getVisibleLogicalRange();
-        if (lr) {
-          allCharts.filter(c => c !== src).forEach(c => {
-            c.timeScale().setVisibleLogicalRange(lr);
-          });
-        }
-      } finally {
-        _syncLock = false;
-      }
-    }, 10); // 10ms debounce
-  };
-}
-
-allCharts.forEach(c => {
-  c.timeScale().subscribeVisibleLogicalRangeChange(makeSyncHandler(c));
-});
-
-// Force grid line alignment on initial load
-setTimeout(() => {
-  allCharts.forEach(c => c.applyOptions({}));
-}, 100);
+    _syncLock = true;
+    try {{
+      const lr = src.timeScale().getVisibleLogicalRange();
+      if (lr) allCharts.filter(c=>c!==src).forEach(c=>c.timeScale().setVisibleLogicalRange(lr));
+    }} finally {{
+      _syncLock = false;
+    }}
+  }};
+}}
+allCharts.forEach(c => c.timeScale().subscribeVisibleLogicalRangeChange(makeSyncHandler(c)));
 
 // ── Period buttons ─────────────────────────────────────────────────────────────
 function setRange(days) {{
