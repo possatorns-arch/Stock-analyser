@@ -529,7 +529,14 @@ def make_tv_chart(ticker):
 
 <script>
 const C = {{ bg:'#0b1120', grid:'#1e293b', up:'#22d68a', dn:'#ff5566', e25:'#ff69b4', e75:'#00e676', e200:'#94a3b8', rsi:'#818cf8', txt:'#94a3b8' }};
-const DATA = {{ D: {DATA_D}, W: {DATA_W}, M: {DATA_M} }}; // Assuming you pass your JSON strings here
+
+// Data Mapping from Python
+const DATA = {{
+  D: {{ candle:{d_candle}, line:{d_line}, e25:{d_e25}, e75:{d_e75}, e200:{d_e200}, rsi:{d_rsi}, vol:{d_vol} }},
+  W: {{ candle:{w_candle}, line:{w_line}, e25:{w_e25}, e75:{w_e75}, e200:{w_e200}, rsi:{w_rsi}, vol:{w_vol} }},
+  M: {{ candle:{m_candle}, line:{m_line}, e25:{m_e25}, e75:{m_e75}, e200:{m_e200}, rsi:{m_rsi}, vol:{m_vol} }}
+}};
+const pbvData = {pbv_data};
 
 let curInterval = 'D', showCandle = true, logMode = false;
 
@@ -537,7 +544,7 @@ const mkOpts = (h) => ({{
     width: window.innerWidth, height: h,
     layout: {{ background: {{ color: C.bg }}, textColor: C.txt, fontSize: 11 }},
     grid: {{ vertLines: {{ color: C.grid }}, horzLines: {{ color: C.grid }} }},
-    timeScale: {{ borderColor: C.grid, visible: false }}, // Only bottom chart shows timescale
+    timeScale: {{ borderColor: C.grid, visible: false }}, 
     rightPriceScale: {{ borderColor: C.grid, autoScale: true, alignLabels: true }},
     crosshair: {{ mode: 0 }},
     handleScroll: {{ vertTouchDrag: false }},
@@ -548,12 +555,17 @@ const cP = LightweightCharts.createChart(document.getElementById('p-price'), mkO
 const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkOpts({RH}));
 const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts({VH}));
 const charts = [cP, cR, cV];
-if (document.getElementById('p-pbv')) charts.push(LightweightCharts.createChart(document.getElementById('p-pbv'), mkOpts({BH})));
 
-// Show timescale only on the last chart
+let cB = null;
+if (document.getElementById('p-pbv')) {{
+    cB = LightweightCharts.createChart(document.getElementById('p-pbv'), mkOpts({BH}));
+    charts.push(cB);
+}}
+
+// Only show timescale on the bottom-most chart
 charts[charts.length - 1].applyOptions({{ timeScale: {{ visible: true }} }});
 
-// 2. Align Price Scale Widths (The "Fix")
+// 2. Alignment Fix: Force consistent Y-axis width
 charts.forEach(chart => {{
     chart.priceScale('right').applyOptions({{ minimumWidth: 80 }});
 }});
@@ -561,33 +573,29 @@ charts.forEach(chart => {{
 // 3. Series Setup
 const sCand = cP.addCandlestickSeries({{ upColor:C.up, downColor:C.dn, borderVisible:false, wickUpColor:C.up, wickDownColor:C.dn }});
 const sLine = cP.addLineSeries({{ color:C.up, lineWidth:2, visible:false }});
-const sE25 = cP.addLineSeries({{ color:C.e25, lineWidth:1, title:'EMA 25' }});
+const sE25 = cP.addLineSeries({{ color:C.e25, lineWidth:1, title:'EMA 25', lastValueVisible: false, priceLineVisible: false }});
+const sE75 = cP.addLineSeries({{ color:C.e75, lineWidth:1, title:'EMA 75', lastValueVisible: false, priceLineVisible: false }});
+const sE200 = cP.addLineSeries({{ color:C.e200, lineWidth:1, title:'EMA 200', lastValueVisible: false, priceLineVisible: false }});
 const sRsi = cR.addLineSeries({{ color:C.rsi, lineWidth:1.5 }});
-const sVol = cV.addHistogramSeries({{ color: '#334155' }});
+const sVol = cV.addHistogramSeries({{ color: '#33415555' }});
+let sPbv = cB ? cB.addLineSeries({{ color: '#f5c842', lineWidth: 1.5, title: 'P/BV' }}) : null;
 
-// 4. Sync Time Scales
-function syncTimeScale() {{
-    charts.forEach(chart => {{
-        if (chart === this.chart) return;
-        chart.timeScale().setVisibleLogicalRange(this.range);
-    }});
-}}
-
+// 4. Sync Time Scales via Logical Range
 charts.forEach(c => {{
     c.timeScale().subscribeVisibleLogicalRangeChange(range => {{
         charts.filter(other => other !== c).forEach(other => other.timeScale().setVisibleLogicalRange(range));
     }});
 }});
 
-// 5. Crosshair Sync
+// 5. Crosshair & Stats Sync
 cP.subscribeCrosshairMove(param => {{
+    if (!param.time) return;
     const data = param.seriesData.get(sCand) || param.seriesData.get(sLine);
     if (data) {{
-        document.getElementById('ohlc').innerHTML = `O ${{data.open.toFixed(2)}} H ${{data.high.toFixed(2)}} L ${{data.low.toFixed(2)}} C ${{data.close.toFixed(2)}}`;
+        document.getElementById('ohlc').innerHTML = `O <span style="color:${{C.up}}">${{data.open?.toFixed(2)}}</span> H <span style="color:${{C.up}}">${{data.high?.toFixed(2)}}</span> L <span style="color:${{C.dn}}">${{data.low?.toFixed(2)}}</span> C <span style="color:${{data.close >= data.open ? C.up : C.dn}}">${{data.close?.toFixed(2)}}</span>`;
     }}
-    charts.forEach(c => {{
-        if (c !== cP) c.setCrosshairPosition(param.price, param.time, sRsi);
-    }});
+    // Move crosshair on other charts
+    charts.filter(c => c !== cP).forEach(c => c.setCrosshairPosition(0, param.time, sRsi));
 }});
 
 function loadData(iv) {{
@@ -595,33 +603,50 @@ function loadData(iv) {{
     sCand.setData(d.candle);
     sLine.setData(d.line);
     sE25.setData(d.e25);
+    sE75.setData(d.e75);
+    sE200.setData(d.e200);
     sRsi.setData(d.rsi);
     sVol.setData(d.vol);
-    charts.forEach(c => c.timeScale().fitContent());
+    if (sPbv) sPbv.setData(pbvData);
+    
+    // Auto-fit and apply default 1Y view
+    setTimeout(() => setRange(365), 50);
 }}
 
-loadData('D');
-
 function setRange(days) {{
-    const timeScale = cP.timeScale();
-    const lastBar = DATA[curInterval].candle[DATA[curInterval].candle.length - 1].time;
-    timeScale.setVisibleRange({{ from: lastBar - (days * 86400), to: lastBar }});
+    const candleData = DATA[curInterval].candle;
+    if (!candleData.length) return;
+    const lastBar = candleData[candleData.length - 1].time;
+    cP.timeScale().setVisibleRange({{ from: lastBar - (days * 86400), to: lastBar + 86400 }});
+}}
+
+function setInterval(iv) {{
+    curInterval = iv;
+    ['ibD','ibW','ibM'].forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById('ib'+iv).classList.add('active');
+    loadData(iv);
 }}
 
 function toggleLog() {{
     logMode = !logMode;
     cP.applyOptions({{ rightPriceScale: {{ mode: logMode ? 1 : 0 }} }});
+    document.getElementById('btn_log').classList.toggle('active', logMode);
 }}
 
 function toggleType() {{
     showCandle = !showCandle;
     sCand.applyOptions({{ visible: showCandle }});
     sLine.applyOptions({{ visible: !showCandle }});
+    document.getElementById('btn_type').textContent = showCandle ? 'Line' : 'Candle';
 }}
 
 window.addEventListener('resize', () => {{
     charts.forEach(c => c.applyOptions({{ width: window.innerWidth }}));
 }});
+
+// Initial Load
+loadData('D');
+
 </script></body></html>"""
     return html, total_h
 
