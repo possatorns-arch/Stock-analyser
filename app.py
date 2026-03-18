@@ -1109,14 +1109,16 @@ def compute_vi_scorecard(ticker):
     nm_med=_med(nm_s)
     sec_a.append((f'Net Margin (5Y median)',f'>{nm_min}%',
                   f"{nm_med:.1f}%" if nm_med else 'N/A',
-                  nm_med is not None and nm_med>=nm_min
+                  nm_med is not None and nm_med>=nm_min,
+                  ''
                   ))
 
     roe_min=thr['roe_min']
     roe_med=_med(roe_s)
     sec_a.append((f'ROE (5Y median)',f'>{roe_min}%',
                   f"{roe_med:.1f}%" if roe_med else 'N/A',
-                  roe_med is not None and roe_med>=roe_min
+                  roe_med is not None and roe_med>=roe_min,
+                  ''
                   ))
 
     earn_ok=_all_pos(net_income)
