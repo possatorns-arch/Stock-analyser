@@ -132,33 +132,64 @@ section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] p {
   display: block !important;
 }
 
-/* Sidebar clear/refresh buttons */
+/* Sidebar sector grid buttons */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] { gap:3px!important; margin-bottom:2px!important; }
+section[data-testid="stSidebar"] div[data-testid="stButton"] { margin:0!important; padding:0!important; }
 section[data-testid="stSidebar"] div[data-testid="stButton"] button {
-  background: transparent !important;
-  border: 1px solid var(--line2) !important;
-  color: var(--t2) !important;
-  font-size: 12px !important; font-weight: 500 !important;
-  border-radius: 4px !important;
-  padding: 6px 10px !important;
+  width:100%!important; height:28px!important; min-height:28px!important;
+  padding:0 3px!important; border-radius:4px!important;
+  font-size:11.5px!important; font-weight:500!important;
+  background:transparent!important; border:1px solid var(--line)!important; color:var(--t2)!important;
+  transition:all 0.1s!important;
 }
 section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover {
-  background: var(--bg3) !important;
-  color: var(--t1) !important;
+  background:var(--bg3)!important; border-color:var(--line2)!important; color:var(--t1)!important;
+}
+/* Active = primary type — accent fill */
+section[data-testid="stSidebar"] div[data-testid="stButton"] button[kind="primary"] {
+  background:rgba(47,129,247,0.15)!important; border-color:var(--acc)!important; color:var(--acc)!important;
+}
+section[data-testid="stSidebar"] div[data-testid="stButton"] button p,
+section[data-testid="stSidebar"] div[data-testid="stButton"] button div {
+  white-space:nowrap!important; overflow:hidden!important; text-overflow:ellipsis!important;
+  font-size:11.5px!important; line-height:1.2!important; font-weight:500!important;
+  margin:0!important; padding:0!important;
 }
 
 /* ══════════════════════════════════════════════════════
-   TAB BAR — will be positioned by JS injection
+   TAB BAR — sticky inside its scroll container
    ══════════════════════════════════════════════════════ */
+
+/* Make the main scroll happen on the tab panel, not the outer page */
+[data-testid="stAppViewContainer"] > section > div {
+  overflow: visible !important;
+}
+
+/* The tabs wrapper uses sticky within the block container */
+.stTabs {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Sticky tab bar */
 .stTabs [data-baseweb="tab-list"] {
+  position: sticky !important;
+  top: -14px !important;   /* offset equals block-container top padding */
+  z-index: 999 !important;
   background: var(--bg) !important;
   border-bottom: 1px solid var(--line) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
   gap: 0 !important;
   padding: 0 !important;
+  margin: 0 -28px !important;  /* full bleed across block-container padding */
+  padding: 0 28px !important;
 }
+
+/* Large click targets */
 .stTabs [data-baseweb="tab"] {
   color: var(--t2) !important;
   font-size: 14px !important; font-weight: 500 !important;
-  padding: 12px 22px !important;
+  padding: 13px 22px !important;
   background: transparent !important;
   border: none !important;
   border-bottom: 2px solid transparent !important;
@@ -166,11 +197,12 @@ section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover {
   margin: 0 !important;
   cursor: pointer !important;
   transition: color 0.1s !important;
+  user-select: none !important;
 }
 .stTabs [data-baseweb="tab"] p,
 .stTabs [data-baseweb="tab"] span,
 .stTabs [data-baseweb="tab"] div { color: inherit !important; font-size: 14px !important; }
-.stTabs [data-baseweb="tab"]:hover { color: var(--t1) !important; }
+.stTabs [data-baseweb="tab"]:hover { color: var(--t1) !important; background: transparent !important; }
 .stTabs [aria-selected="true"],
 .stTabs [aria-selected="true"] p,
 .stTabs [aria-selected="true"] span,
@@ -2165,15 +2197,31 @@ def show_screener_tab():
         else:                        pool=SET100+MAI_TICKERS
         if sector_f!="All Sectors":  pool=[t for t in pool if t in set(SECTOR_MAP.get(sector_f,[]))]
         if not pool: st.warning("No tickers match this filter."); return
-        bar=st.progress(0); results=[]; errors=[]
+        import time as _time
+        results=[]; errors=[]; t0=_time.time()
+        prog_bar=st.progress(0)
+        prog_text=st.empty()
         for i,t in enumerate(pool):
-            bar.progress((i+1)/len(pool),text=f"Analysing **{t}** · {i+1}/{len(pool)}")
+            elapsed=_time.time()-t0
+            done_pct=(i+1)/len(pool)
+            eta=elapsed/done_pct*(1-done_pct) if done_pct>0 else 0
+            eta_str=f"{eta:.0f}s remaining" if eta>2 else "almost done…"
+            prog_bar.progress(done_pct)
+            prog_text.markdown(
+                f"<div style='display:flex;align-items:center;gap:10px;padding:6px 0'>"
+                f"<span style='color:#e6edf3;font-weight:600;font-size:13px'>{t}</span>"
+                f"<span style='color:#484f58;font-size:12px'>{i+1} / {len(pool)}</span>"
+                f"<span style='color:#484f58;font-size:12px'>·</span>"
+                f"<span style='color:#8b949e;font-size:12px'>{eta_str}</span>"
+                f"</div>", unsafe_allow_html=True)
             r=compute_quick_score(to_yf(t)); results.append(r)
             if r.get("Verdict")=="Error": errors.append(t)
-        bar.empty(); ok_n=len(results)-len(errors)
-        msg=f"Done — {ok_n}/{len(results)} stocks analysed"
-        if errors: msg+=f"  ·  {len(errors)} no data: {', '.join(errors[:5])}"
-        st.success(f"✅ {msg}")
+        prog_bar.empty(); prog_text.empty()
+        ok_n=len(results)-len(errors)
+        total_t=_time.time()-t0
+        msg=f"{ok_n}/{len(results)} stocks analysed in {total_t:.0f}s"
+        if errors: msg+=f" · {len(errors)} failed: {', '.join(errors[:4])}"
+        st.success(msg)
         st.session_state["screener_results"]=results; st.session_state["screener_meta"]=f"{universe} · {sector_f}"
     if "screener_results" not in st.session_state: return
     all_r=st.session_state["screener_results"]
@@ -2235,190 +2283,93 @@ def main():
     if 'mai_sec' not in st.session_state: st.session_state['mai_sec'] = 'All'
 
     with st.sidebar:
-        # ── Header ──────────────────────────────────────────────────────────────
-        st.markdown("""
-<div style='padding:14px 2px 12px'>
-  <div style='font-size:14px;font-weight:600;color:#e6edf3;letter-spacing:-0.2px'>SET Analyser</div>
-  <div style='font-size:11px;color:#484f58;margin-top:1px'>Value Investor Edition</div>
-</div>
-""", unsafe_allow_html=True)
-        st.divider()
+        st.markdown("<div style='padding:12px 2px 10px;border-bottom:1px solid #21262d;margin-bottom:10px'><div style='font-size:14px;font-weight:600;color:#e6edf3'>SET Analyser</div><div style='font-size:11px;color:#484f58;margin-top:1px'>Value Investor Edition</div></div>",unsafe_allow_html=True)
 
-        # ── SET100 ──────────────────────────────────────────────────────────────
-        st.caption("SET 100")
-        # Sector filter — dropdown (clean, no cramped button grid)
-        sector_opts = ["All sectors"] + sorted(SECTOR_MAP.keys())
-        active_sec_idx = 0
-        _stored_sec = st.session_state.get('sb_sec','All')
-        if _stored_sec != 'All' and _stored_sec in SECTOR_MAP:
-            active_sec_idx = sector_opts.index(_stored_sec)
-        chosen_sec = st.selectbox("Sector", sector_opts, index=active_sec_idx,
-                                   key="sb_sec_dd", label_visibility="collapsed")
-        if chosen_sec != st.session_state.get('_sb_sec_prev'):
-            st.session_state['_sb_sec_prev'] = chosen_sec
-            new_sec = 'All' if chosen_sec == "All sectors" else chosen_sec
-            if new_sec != st.session_state.get('sb_sec','All'):
-                st.session_state['sb_sec'] = new_sec
-                if 'set_ms' in st.session_state: del st.session_state['set_ms']
-                st.rerun()
+        # ── SET100 section ──────────────────────────────────────────────────────
+        st.markdown("<div class='sidebar-label'>SET 100</div>",unsafe_allow_html=True)
+        sector_keys=['All']+sorted(SECTOR_MAP.keys())
+        active_sec=st.session_state.get('sb_sec','All')
+        for row_start in range(0,len(sector_keys),3):
+            row_keys=sector_keys[row_start:row_start+3]
+            btn_cols=st.columns([1,1,1],gap="small")
+            for ci,sk in enumerate(row_keys):
+                ico,lbl=SECTOR_ICONS.get(sk,("",sk[:6]))
+                is_active=(sk==active_sec)
+                with btn_cols[ci]:
+                    label_str=f"{ico} {lbl}" if ico else lbl
+                    btn_type="primary" if is_active else "secondary"
+                    if st.button(label_str,key=f"sec_btn_{sk}",use_container_width=True,type=btn_type):
+                        st.session_state['sb_sec']=sk if sk!=active_sec else 'All'
+                        if 'set_ms' in st.session_state: del st.session_state['set_ms']
+                        st.rerun()
 
-        active_sec = st.session_state.get('sb_sec','All')
-        if active_sec == 'All':
-            available_set100 = SET100
-            ph100 = "All SET100 stocks…"
-        else:
-            available_set100 = [t for t in SECTOR_MAP.get(active_sec,[]) if t in SET100]
-            ph100 = f"{active_sec} — {len(available_set100)} stocks"
-        set_sel = st.multiselect("SET100", available_set100,
-                                  placeholder=ph100, key="set_ms",
-                                  label_visibility="collapsed")
+        active_sec=st.session_state.get('sb_sec','All')
+        available_set100=SET100 if active_sec=='All' else [t for t in SECTOR_MAP.get(active_sec,[]) if t in SET100]
+        ph100="All SET100…" if active_sec=='All' else f"{active_sec} ({len(available_set100)})"
+        set_sel=st.multiselect("SET100",available_set100,placeholder=ph100,key="set_ms",label_visibility="collapsed")
+        st.markdown("<hr>",unsafe_allow_html=True)
 
-        # ── MAI ─────────────────────────────────────────────────────────────────
-        st.caption("MAI")
-        mai_opts = ["All sectors"] + sorted(MAI_SECTOR_MAP.keys())
-        _stored_mai = st.session_state.get('mai_sec','All')
-        active_mai_idx = 0
-        if _stored_mai != 'All' and _stored_mai in MAI_SECTOR_MAP:
-            active_mai_idx = mai_opts.index(_stored_mai)
-        chosen_mai = st.selectbox("MAI sector", mai_opts, index=active_mai_idx,
-                                   key="mai_sec_dd", label_visibility="collapsed")
-        if chosen_mai != st.session_state.get('_mai_sec_prev'):
-            st.session_state['_mai_sec_prev'] = chosen_mai
-            new_mai = 'All' if chosen_mai == "All sectors" else chosen_mai
-            if new_mai != st.session_state.get('mai_sec','All'):
-                st.session_state['mai_sec'] = new_mai
-                if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
-                st.rerun()
+        # ── MAI section ─────────────────────────────────────────────────────────
+        st.markdown("<div class='sidebar-label'>MAI</div>",unsafe_allow_html=True)
+        mai_sec_keys=['All']+sorted(MAI_SECTOR_MAP.keys())
+        active_mai=st.session_state.get('mai_sec','All')
+        for mrow_start in range(0,len(mai_sec_keys),3):
+            mrow_keys=mai_sec_keys[mrow_start:mrow_start+3]
+            mai_cols=st.columns([1,1,1],gap="small")
+            for ci,sk in enumerate(mrow_keys):
+                ico,lbl=SECTOR_ICONS.get(sk,("",sk[:6]))
+                is_active=(sk==active_mai)
+                with mai_cols[ci]:
+                    label_str=f"{ico} {lbl}" if ico else lbl
+                    btn_type="primary" if is_active else "secondary"
+                    if st.button(label_str,key=f"mai_btn_{sk}",use_container_width=True,type=btn_type):
+                        st.session_state['mai_sec']=sk if sk!=active_mai else 'All'
+                        if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
+                        st.rerun()
 
-        active_mai = st.session_state.get('mai_sec','All')
-        if active_mai == 'All':
-            available_mai = MAI_TICKERS
-            ph_mai = "All MAI stocks…"
-        else:
-            available_mai = [t for t in MAI_SECTOR_MAP.get(active_mai,[]) if t in MAI_TICKERS]
-            ph_mai = f"{active_mai} — {len(available_mai)} stocks"
-        mai_sel = st.multiselect("MAI", available_mai,
-                                  placeholder=ph_mai, key="mai_ms",
-                                  label_visibility="collapsed")
+        active_mai=st.session_state.get('mai_sec','All')
+        available_mai=MAI_TICKERS if active_mai=='All' else [t for t in MAI_SECTOR_MAP.get(active_mai,[]) if t in MAI_TICKERS]
+        ph_mai="All MAI…" if active_mai=='All' else f"{active_mai} ({len(available_mai)})"
+        mai_sel=st.multiselect("MAI",available_mai,placeholder=ph_mai,key="mai_ms",label_visibility="collapsed")
+        st.markdown("<hr>",unsafe_allow_html=True)
 
         # ── DR / ETF ────────────────────────────────────────────────────────────
-        st.caption("DR / ETF")
-        dr_sel = st.multiselect("DR", DR_TICKERS,
-                                 placeholder="DR / ETF…", key="dr_ms",
-                                 label_visibility="collapsed")
+        st.markdown("<div class='sidebar-label'>DR / ETF</div>",unsafe_allow_html=True)
+        dr_sel=st.multiselect("DR",DR_TICKERS,placeholder="DR / ETF…",key="dr_ms",label_visibility="collapsed")
+        st.markdown("<hr>",unsafe_allow_html=True)
 
         # ── Global / Custom ─────────────────────────────────────────────────────
-        st.caption("Global / Custom")
-        custom_raw = st.text_input("Custom", placeholder="AAPL, TSLA, 9984.T, BTC-USD …",
-                                    key="custom_tickers", label_visibility="collapsed")
-        custom_sel = [t.strip().upper() for t in custom_raw.replace(","," ").split() if t.strip()]
+        st.markdown("<div class='sidebar-label'>Global / Custom</div>",unsafe_allow_html=True)
+        st.markdown("<div style='font-size:11px;color:#484f58;margin-bottom:5px'>Any Yahoo Finance ticker</div>",unsafe_allow_html=True)
+        custom_raw=st.text_input("Custom",placeholder="AAPL, TSLA, 9984.T…",key="custom_tickers",label_visibility="collapsed")
+        custom_sel=[t.strip().upper() for t in custom_raw.replace(","," ").split() if t.strip()]
+        GLOBAL_SHORTCUTS={"US":["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA"],"Japan":["7203.T","9984.T","6758.T"],"Korea":["005930.KS","000660.KS"],"China":["BABA","JD","PDD","0700.HK"],"Crypto":["BTC-USD","ETH-USD"],"ETF":["SPY","QQQ","VTI","GLD"]}
+        gl_grp=st.selectbox("Region",["—"]+list(GLOBAL_SHORTCUTS.keys()),key="gl_grp",label_visibility="collapsed")
+        gl_sel=st.multiselect("Picks",GLOBAL_SHORTCUTS.get(gl_grp,[]),placeholder=f"{gl_grp}…",key=f"gl_ms_{gl_grp}",label_visibility="collapsed") if gl_grp and gl_grp!="—" else []
 
-        GLOBAL_SHORTCUTS = {
-            "US":     ["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","BRK-B","JPM"],
-            "Japan":  ["7203.T","9984.T","6758.T","8306.T","6861.T"],
-            "Korea":  ["005930.KS","000660.KS","035420.KS","051910.KS"],
-            "China":  ["BABA","JD","PDD","BIDU","9988.HK","0700.HK"],
-            "SG/HK":  ["D05.SI","O39.SI","U11.SI","9988.HK"],
-            "Crypto": ["BTC-USD","ETH-USD","BNB-USD"],
-            "ETF":    ["SPY","QQQ","VTI","GLD","USO"],
-        }
-        gl_grp = st.selectbox("Region", ["—"] + list(GLOBAL_SHORTCUTS.keys()),
-                               key="gl_grp", label_visibility="collapsed")
-        gl_sel = []
-        if gl_grp and gl_grp != "—":
-            gl_sel = st.multiselect("Picks", GLOBAL_SHORTCUTS[gl_grp],
-                                     placeholder=f"{gl_grp}…",
-                                     key=f"gl_ms_{gl_grp}",
-                                     label_visibility="collapsed")
+        selected_base=set_sel+mai_sel+dr_sel
+        selected_global=custom_sel+gl_sel
+        selected=[to_yf(t) for t in selected_base]+selected_global
+        all_selected_base=selected_base+selected_global
 
-        selected_base = set_sel + mai_sel + dr_sel
-        selected_global = custom_sel + gl_sel
-        selected = [to_yf(t) for t in selected_base] + selected_global
-        all_selected_base = selected_base + selected_global
-
-        # ── Selection summary ────────────────────────────────────────────────────
-        st.divider()
+        st.markdown("<hr>",unsafe_allow_html=True)
         if all_selected_base:
-            preview = ", ".join(all_selected_base[:5]) + ("…" if len(all_selected_base) > 5 else "")
-            st.markdown(
-                f"<div style='font-size:12px;color:#8b949e;margin-bottom:8px'>"
-                f"<span style='color:#3fb950;font-weight:600'>{len(all_selected_base)} selected</span>"
-                f" · {preview}</div>",
-                unsafe_allow_html=True)
-
-        c1, c2 = st.columns(2)
+            preview=", ".join(all_selected_base[:5])+("…" if len(all_selected_base)>5 else "")
+            st.markdown(f"<div style='font-size:12px;color:#8b949e;margin-bottom:8px'><span style='color:#3fb950;font-weight:600'>{len(all_selected_base)}</span> selected · {preview}</div>",unsafe_allow_html=True)
+        c1,c2=st.columns(2)
         with c1:
-            if st.button("Clear all", use_container_width=True):
-                for k in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec','custom_tickers',
-                          'gl_grp','scr_filter','screener_results','screener_meta',
-                          '_sb_sec_prev','_mai_sec_prev','sb_sec_dd','mai_sec_dd']:
-                    if k in st.session_state: del st.session_state[k]
+            if st.button("Clear all",use_container_width=True):
                 for k in list(st.session_state.keys()):
-                    if k.startswith('gl_ms_'): del st.session_state[k]
+                    if any(k.startswith(p) for p in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec','custom','gl_','scr_','screener']):
+                        del st.session_state[k]
                 st.rerun()
         with c2:
-            if st.button("Refresh data", use_container_width=True):
+            if st.button("Refresh",use_container_width=True):
                 st.cache_data.clear(); st.rerun()
 
     TABS=["Screener","Price","Financials","Fundamentals","VI Score","News"]
     tabs=st.tabs(TABS)
 
-    # ── Inject JS to freeze the tab bar via components.html ──────────────────────
-    # st.markdown strips <script>; components.html runs in parent window via postMessage
-    _components.html("""
-<script>
-(function(){
-  function patchTabs(){
-    const doc = window.parent.document;
-    const tabList = doc.querySelector('[data-baseweb="tab-list"]');
-    if(!tabList){ setTimeout(patchTabs, 250); return; }
-
-    // Already patched?
-    if(tabList._patched) return;
-    tabList._patched = true;
-
-    // === Strategy: teleport the tab list to <body> as a fixed element ===
-    // This escapes ALL overflow containers. The tab list stays functional
-    // because it's the REAL element (not a clone) — all Streamlit event
-    // listeners remain attached.
-
-    const sidebar = doc.querySelector('[data-testid="stSidebar"]');
-    const sbW = sidebar ? sidebar.getBoundingClientRect().width : 250;
-
-    // Apply fixed positioning
-    Object.assign(tabList.style, {
-      position:   'fixed',
-      top:        '0px',
-      left:       sbW + 'px',
-      right:      '0px',
-      zIndex:     '99999',
-      background: '#0d1117',
-      borderBottom: '1px solid #21262d',
-      boxShadow:  '0 2px 8px rgba(0,0,0,0.5)',
-      padding:    '0',
-      margin:     '0',
-    });
-
-    // Teleport to body so no ancestor overflow can clip it
-    doc.body.appendChild(tabList);
-
-    // Pad main content so nothing hides behind the tab bar
-    const h = tabList.getBoundingClientRect().height || 46;
-    const container = doc.querySelector('.block-container');
-    if(container) container.style.paddingTop = (h + 8) + 'px';
-
-    // Re-run on sidebar resize (collapse/expand)
-    let lastSbW = sbW;
-    setInterval(()=>{
-      const sb = doc.querySelector('[data-testid="stSidebar"]');
-      const w = sb ? sb.getBoundingClientRect().width : 0;
-      if(w !== lastSbW){ tabList.style.left = w + 'px'; lastSbW = w; }
-    }, 400);
-  }
-  setTimeout(patchTabs, 600);
-})();
-</script>
-""", height=0, scrolling=False)
     def _need_selection():
         st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:36px;text-align:center;margin-top:20px'>"
                     "<div style='font-size:36px'>←</div><div style='color:#00c8f8;font-size:16px;margin:10px 0 6px;font-weight:600'>Pick a stock in the sidebar</div>"
