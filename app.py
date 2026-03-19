@@ -186,7 +186,7 @@ section[data-testid="stSidebar"] > div {
 .stTabs [data-baseweb="tab"] {
   color: var(--t2) !important;
   font-size: 14px !important; font-weight: 500 !important;
-  padding: 13px 22px !important;
+  padding: 14px 28px !important;  /* big click zone */
   background: transparent !important;
   border: none !important;
   border-bottom: 2px solid transparent !important;
@@ -195,6 +195,8 @@ section[data-testid="stSidebar"] > div {
   cursor: pointer !important;
   transition: color 0.1s !important;
   user-select: none !important;
+  min-width: 80px !important;
+  text-align: center !important;
 }
 .stTabs [data-baseweb="tab"] p,
 .stTabs [data-baseweb="tab"] span,
@@ -373,112 +375,317 @@ def to_yf(sym): return sym + ".BK"
 # Applying industrial metrics to banks or property companies gives wrong conclusions.
 
 SECTOR_PROFILES = {
-    # ── Banks ─────────────────────────────────────────────────────────────────
-    # High D/E is STRUCTURAL (deposits = liabilities; loans = assets).
-    # A bank with D/E < 1 would be dangerously under-leveraged.
-    # Key risks: NPL ratio, capital adequacy (CAR), net interest margin (NIM),
-    # loan growth, and cost-to-income ratio — most not available via yfinance.
+
+    # ══════════════════════════════════════════════════════════════════════
+    # BANKS — Thai commercial & specialized banks
+    # Business model: take deposits (liabilities), lend at spread (assets).
+    # D/E 8-15× is NORMAL and regulatory requirement, not a risk.
+    # Revenue = net interest income + fee income. Gross margin concept N/A.
+    # Key value driver: ROE, NIM, NPL, loan growth. Most not in yfinance.
+    # Valuation: P/B is primary anchor. P/E meaningful only vs peers.
+    # ══════════════════════════════════════════════════════════════════════
     'bank': {
-        'label': '🏦 Bank', 'color': '#4fc3f7',
-        'note': ('Banking model: deposits are liabilities → D/E 8–15× is NORMAL & regulated. '
-                 'Thresholds adjusted. Key risks not in yfinance: NPL ratio, CAR, NIM — '
-                 'always cross-check BOT regulatory filings.'),
-        'rev_cagr_min': 5,
-        'gross_margin_min': None,   # Replace with net interest income / revenue
-        'net_margin_min': 15,       # Banks earn fat margins on revenue
-        'roe_min': 10,              # Capital-intensive; 10%+ is good for Thai banks
-        'de_max': None,             # SKIP — structural, not a risk signal
-        'cr_min': None,             # SKIP — deposit-funded; ALM manages liquidity
-        'ic_min': 2,                # Banks earn interest; coverage concept differs
-        'div_yield_min': 2.0,       # Thai banks historically pay 3–6%
-        'fcf_mode': 'ocf_positive', # OCF = core cash; capex minimal for banks
-        'phantom_mode': 'ni_trend', # Loan book expansion causes OCF swing; NI trend better signal
+        'label': 'Bank', 'color': '#4fc3f7',
+        'note': 'D/E 8–15× is normal (deposits = liabilities). ROE >10% is solid for Thai banks. Cross-check NPL, CAR, NIM in BOT filings.',
+        'rev_cagr_min':    5,     # Net interest income growth target
+        'gross_margin_min': None, # N/A — no COGS vs revenue split for banks
+        'net_margin_min':  15,    # Banks should earn 15-25% net margin on revenue
+        'roe_min':         10,    # Thai banks: 8-14% ROE is normal
+        'de_max':          None,  # SKIP — structural leverage, not a credit risk
+        'cr_min':          None,  # SKIP — ALM framework, not working capital
+        'ic_min':          None,  # SKIP — banks earn interest, IC not applicable
+        'div_yield_min':   2.5,   # Thai major banks: 3-6% typical
+        'pe_max':          12,    # Banks trade 6-12× — above 14× is expensive
+        'pb_max':          1.5,   # Book value = loan book; >1.5× needs strong ROE
+        'fcf_mode':        'ocf_positive',
+        'phantom_mode':    'ni_trend',
     },
-    # ── Consumer Finance / Leasing / Microfinance ─────────────────────────────
-    # Leverage is the PRODUCT: they borrow cheap, lend expensive.
-    # D/E 3–8× is perfectly healthy. Key risks: NPL, collection rate, cost of funds.
+
+    # ══════════════════════════════════════════════════════════════════════
+    # CONSUMER FINANCE / LEASING / MICROFINANCE
+    # Model: borrow wholesale (bonds/bank lines), lend retail at higher rate.
+    # D/E 3-8× is their natural leverage (lending IS the product).
+    # Revenue = interest income. High ROE expected from leverage.
+    # Key risk: NPL ratio (not in yfinance), cost of funds, credit cycle.
+    # ══════════════════════════════════════════════════════════════════════
     'finance': {
-        'label': '💳 Finance/Leasing', 'color': '#ce93d8',
-        'note': ('Finance model: borrowing to lend IS the business. D/E 3–8× is normal. '
-                 'Key risks not in yfinance: NPL%, collection rate, cost-of-funds spread. '
-                 'Check company quarterly filings for portfolio quality.'),
-        'rev_cagr_min': 7,
-        'gross_margin_min': None,   # Interest spread, not a traditional gross margin
-        'net_margin_min': 15,       # Good finance cos run 15–30% net margin
-        'roe_min': 15,
-        'de_max': 6.0,
-        'cr_min': None,             # Funded by bonds/banks, not payables
-        'ic_min': 2,
-        'div_yield_min': 1.0,
-        'fcf_mode': 'ocf_positive',
-        'phantom_mode': 'ni_trend',
+        'label': 'Finance/Leasing', 'color': '#ce93d8',
+        'note': 'Borrowing to lend at spread — D/E 3-8× is healthy. High ROE from leverage. Watch NPL and cost-of-funds in filings.',
+        'rev_cagr_min':    8,     # Loan book should grow faster than GDP
+        'gross_margin_min': None, # N/A — interest spread, not a COGS business
+        'net_margin_min':  18,    # Finance cos run 15-35% net margin
+        'roe_min':         15,    # Leverage amplifies returns; 15%+ expected
+        'de_max':          8.0,   # >8× starts becoming risky
+        'cr_min':          None,  # Funded by bonds, not short-term payables
+        'ic_min':          2.0,   # Should cover interest at minimum 2×
+        'div_yield_min':   2.0,
+        'pe_max':          18,    # Finance cos: 8-18× P/E range
+        'pb_max':          3.0,   # Book value matters; >3× needs premium growth
+        'fcf_mode':        'ocf_positive',
+        'phantom_mode':    'ni_trend',
     },
-    # ── Property Developers ───────────────────────────────────────────────────
-    # Project-based: revenue and FCF are lumpy by design (3–5 year build cycles).
-    # Moderate leverage (1–2×) is normal. Backlog/presales are key, but not in yfinance.
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PROPERTY DEVELOPERS (residential, industrial estate, commercial)
+    # Revenue is lumpy — projects take 2-4 years from sale to delivery.
+    # Working capital is huge (land bank, construction WIP).
+    # D/E 1-1.5× standard; REITs have different structure.
+    # Gross margin 25-45% depending on project mix and location.
+    # Key VI metric: backlog/presales (not in yfinance — check filings).
+    # ══════════════════════════════════════════════════════════════════════
     'property': {
-        'label': '🏗 Property/REIT', 'color': '#ffb74d',
-        'note': ('Property model: revenue is project-lumpy (3–5yr cycles). '
-                 'D/E 1–1.5× is standard. FCF evaluated as 3Y average. '
-                 'Key metrics not in yfinance: presales backlog, sell-through rate.'),
-        'rev_cagr_min': 5,
-        'gross_margin_min': 25,     # Thai residential developers: 25–40%
-        'net_margin_min': 8,
-        'roe_min': 10,
-        'de_max': 1.5,
-        'cr_min': 1.2,              # Funded partly by homebuyer deposits
-        'ic_min': 3,
-        'div_yield_min': 2.0,
-        'fcf_mode': 'avg_3y',       # 3Y average; single years can be heavily negative
-        'phantom_mode': 'standard',
+        'label': 'Property', 'color': '#ffb74d',
+        'note': 'Project-lumpy revenue (2-4yr cycles). Gross margin 25-40%. FCF negative during land build-up is normal. Check presales backlog.',
+        'rev_cagr_min':    4,     # Residential growth tracks economy; 4-6% decent
+        'gross_margin_min': 25,   # Good Thai developer: 28-40%; <25% margin erosion
+        'net_margin_min':  7,     # After interest on project debt: 7-15%
+        'roe_min':         10,    # Capital-heavy: 10-18% is healthy
+        'de_max':          1.5,   # >1.5× starts pressuring coverage
+        'cr_min':          1.5,   # Need buffer for construction draws
+        'ic_min':          3.0,   # Interest coverage: project debt is cheap but large
+        'div_yield_min':   2.5,   # Property cos should distribute when projects complete
+        'pe_max':          15,    # Thai property trades 8-15×; above is rich
+        'pb_max':          2.0,   # Landbank at cost; 1.5-2× is fair
+        'fcf_mode':        'avg_3y',
+        'phantom_mode':    'standard',
     },
-    # ── Energy / Infrastructure / Utilities ───────────────────────────────────
-    # Long-lived assets financed with project debt (20–30yr bonds normal).
-    # D/E 2–3× is healthy for power plants. FCF dips sharply during construction.
-    # Dividend yield is the primary investor return driver.
-    'energy': {
-        'label': '⚡ Energy/Infra', 'color': '#aed581',
-        'note': ('Energy/infra model: project-finance debt (2–2.5× D/E) is normal for '
-                 'power plants and pipelines. FCF is evaluated as 3Y average (construction '
-                 'phases create negative FCF). Dividend yield is the primary return driver.'),
-        'rev_cagr_min': 5,
-        'gross_margin_min': 20,     # Commodity/refining margins can be thin
-        'net_margin_min': 5,
-        'roe_min': 8,
-        'de_max': 2.5,
-        'cr_min': 1.0,
-        'ic_min': 3,
-        'div_yield_min': 3.0,       # Energy/utility co.s should distribute cash
-        'fcf_mode': 'avg_3y',
-        'phantom_mode': 'standard',
+
+    # ══════════════════════════════════════════════════════════════════════
+    # UPSTREAM ENERGY (oil/gas E&P, coal mining)
+    # PTT, PTTEP, BANPU — commodity price takers, not margin controllers.
+    # Revenue and margins swing violently with commodity cycles.
+    # D/E 0.5-1.5× normal; capex is huge for resource development.
+    # FCF highly cyclical — evaluate on normalized 3-5Y basis.
+    # Dividend varies with oil price; reserve replacement rate is key.
+    # ══════════════════════════════════════════════════════════════════════
+    'energy_upstream': {
+        'label': 'Energy (E&P/Mining)', 'color': '#ef9a9a',
+        'note': 'Commodity price taker — margins and FCF are cyclical. Gross margin 20-50% depends on oil/coal prices. Evaluate on 5Y normalized basis.',
+        'rev_cagr_min':    3,     # Commodity growth slow; 3% real is fine
+        'gross_margin_min': 20,   # In trough: 15-25%; at peak: 40-55%
+        'net_margin_min':  5,     # Cyclical: accept low margins in trough
+        'roe_min':         8,     # Cyclical: 8% trough ROE, 20%+ at peak
+        'de_max':          1.5,   # E&P debt manageable at <1.5×
+        'cr_min':          1.0,   # Minimum liquidity buffer
+        'ic_min':          3.0,   # Should cover interest 3× at trough pricing
+        'div_yield_min':   3.0,   # Commodity cos pay special dividends at peak
+        'pe_max':          15,    # Normalized P/E 8-15× (peak P/E misleadingly low)
+        'pb_max':          2.5,   # Asset-heavy; 1-2.5× is normal range
+        'fcf_mode':        'avg_3y',
+        'phantom_mode':    'standard',
     },
-    # ── General (Industrial / Tech / Healthcare / Food / Consumer) ────────────
+
+    # ══════════════════════════════════════════════════════════════════════
+    # DOWNSTREAM / REFINING / PETROCHEMICALS
+    # PTTGC, TOP, IRPC, SPRC, IVL — thin crack-spread businesses.
+    # Gross margin 5-15% is NORMAL for refining — not a moat problem.
+    # High revenue, low margin. Cyclical with refining spreads.
+    # Capital intensive. D/E 0.5-2× depending on refinery age/size.
+    # ══════════════════════════════════════════════════════════════════════
+    'energy_refining': {
+        'label': 'Refining/Petrochem', 'color': '#a5d6a7',
+        'note': 'Crack-spread business — gross margin 5-15% is NORMAL (not a weakness). Revenue is huge, margins thin. Evaluate on through-cycle D/E and OCF.',
+        'rev_cagr_min':    3,
+        'gross_margin_min': 5,    # Refining crack spread: 5-15% is healthy
+        'net_margin_min':  2,     # Net after D&A, interest: 2-8%
+        'roe_min':         6,     # Through-cycle: 6-12%
+        'de_max':          2.0,   # Refineries are asset-heavy
+        'cr_min':          1.0,
+        'ic_min':          2.5,
+        'div_yield_min':   2.0,
+        'pe_max':          12,    # Refining trades cheap on low margin
+        'pb_max':          2.0,
+        'fcf_mode':        'avg_3y',
+        'phantom_mode':    'standard',
+    },
+
+    # ══════════════════════════════════════════════════════════════════════
+    # POWER GENERATION / UTILITIES / RENEWABLES
+    # BGRIM, EA, EGCO, GULF, GPSC, GUNKUL, CKP, RATCH, BCPG, BBGI, SSP
+    # Contracted revenue (PPA), very stable. Capital is project-finance debt.
+    # D/E 2-4× is STANDARD for power plant SPVs (30-year bonds vs 25-year assets).
+    # High gross margin (60-80%) but huge D&A eats into net margin.
+    # Dividend yield is primary return; treat like bond-equity hybrid.
+    # ══════════════════════════════════════════════════════════════════════
+    'power': {
+        'label': 'Power/Utilities', 'color': '#aed581',
+        'note': 'PPA-contracted revenue = bond-like stability. D/E 2-4× is normal (project finance). High gross margin but D&A is large. Value via dividend yield + EV/EBITDA.',
+        'rev_cagr_min':    5,     # COD (commercial operation date) drives growth
+        'gross_margin_min': 30,   # Power gross margin: 30-70% depending on fuel
+        'net_margin_min':  8,     # After heavy D&A and project interest: 8-20%
+        'roe_min':         8,     # Leverage amplifies; but contracted = lower risk
+        'de_max':          4.0,   # Project finance: 3-4× is normal
+        'cr_min':          1.0,   # Cash flow timing by PPA schedule
+        'ic_min':          2.5,   # Must cover project debt interest
+        'div_yield_min':   3.5,   # Utilities should yield 3-6%
+        'pe_max':          20,    # Regulated returns: trade at premium P/E
+        'pb_max':          3.0,   # Asset base valued at replacement cost
+        'fcf_mode':        'avg_3y',
+        'phantom_mode':    'standard',
+    },
+
+    # ══════════════════════════════════════════════════════════════════════
+    # HEALTHCARE (hospitals, pharma, medical devices)
+    # BDMS, BH, BCH, CHG, BCH, PR9 — recession-resistant, pricing power.
+    # High gross margin (50-70%). Premium P/E justified by stability.
+    # Low D/E (hospitals fund capex from operations).
+    # ROE may appear modest due to conservative asset valuation.
+    # ══════════════════════════════════════════════════════════════════════
+    'healthcare': {
+        'label': 'Healthcare', 'color': '#f48fb1',
+        'note': 'Recession-resistant, high gross margin (50-70%). Premium P/E justified. Watch bed utilization rate and ARPU trends in filings.',
+        'rev_cagr_min':    8,     # Medical tourism + aging population driver
+        'gross_margin_min': 35,   # Hospital gross margin after direct costs: 35-60%
+        'net_margin_min':  10,    # After SGA, D&A: 10-20%
+        'roe_min':         12,    # Good hospitals: 12-25% ROE
+        'de_max':          0.8,   # Conservative; hospitals avoid heavy leverage
+        'cr_min':          1.5,
+        'ic_min':          5.0,   # Should have headroom; healthcare is defensive
+        'div_yield_min':   1.5,   # Healthcare reinvests; yield can be lower
+        'pe_max':          30,    # Premium sector: 20-35× is normal
+        'pb_max':          4.0,   # Intangibles (reputation, licenses) not on balance sheet
+        'fcf_mode':        'all_positive',
+        'phantom_mode':    'standard',
+    },
+
+    # ══════════════════════════════════════════════════════════════════════
+    # FOOD & BEVERAGE (producers, processors, distributors)
+    # CPF, TU, BTG, SAPPE, CBG, ICHI, OSP — commodity input costs vary.
+    # Gross margin 20-50% depending on value-added vs commodity processing.
+    # CPF (integrated poultry/aqua): 10-20% gross margin normal.
+    # Premium brands (SAPPE, CBG): 40-60% gross margin.
+    # ══════════════════════════════════════════════════════════════════════
+    'food': {
+        'label': 'Food & Beverage', 'color': '#ffcc80',
+        'note': 'Wide range: commodity processors (10-20% gross margin) vs branded (40-60%). Separate integrated producers like CPF from premium brands.',
+        'rev_cagr_min':    5,
+        'gross_margin_min': 12,   # Commodity food: 10-20%; branded: 35-55%
+        'net_margin_min':  4,     # Commodity: 3-7%; branded: 10-18%
+        'roe_min':         10,
+        'de_max':          1.0,
+        'cr_min':          1.3,
+        'ic_min':          4.0,
+        'div_yield_min':   1.5,
+        'pe_max':          20,
+        'pb_max':          3.0,
+        'fcf_mode':        'all_positive',
+        'phantom_mode':    'standard',
+    },
+
+    # ══════════════════════════════════════════════════════════════════════
+    # COMMERCE / RETAIL (convenience stores, home improvement, fashion)
+    # CPALL, HMPRO, COM7, CRC, DOHOME, GLOBAL — thin margins, high volume.
+    # CPALL (7-Eleven): gross margin ~25% but massive footprint.
+    # Home improvement/electronics: 20-30% gross margin typical.
+    # D/E can be moderate (lease liabilities inflate reported D/E).
+    # ══════════════════════════════════════════════════════════════════════
+    'commerce': {
+        'label': 'Commerce/Retail', 'color': '#80cbc4',
+        'note': 'Thin margins, high volume. Gross margin 15-30% for retail (not a red flag). IFRS16 lease liabilities inflate D/E — use EV/EBITDA. Check SSS growth.',
+        'rev_cagr_min':    6,
+        'gross_margin_min': 15,   # Convenience/retail: 15-30%
+        'net_margin_min':  3,     # After rents, staff: 3-8%
+        'roe_min':         12,    # Retail leverage amplifies ROE; 12%+ acceptable
+        'de_max':          2.5,   # IFRS16 inflates; adjust for lease liabilities
+        'cr_min':          1.0,   # Retail typically runs tight working capital
+        'ic_min':          3.0,
+        'div_yield_min':   1.5,
+        'pe_max':          25,    # Defensive retail can trade at premium
+        'pb_max':          4.0,   # Brand + store network not fully on balance sheet
+        'fcf_mode':        'all_positive',
+        'phantom_mode':    'standard',
+    },
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TECHNOLOGY / TELECOM / MEDIA
+    # ADVANC, TRUE, DELTA, KCE, HANA — range from asset-light (telecom services)
+    # to capital-heavy (semiconductor/electronics manufacturing).
+    # ADVANC/TRUE: 30-50% gross margin; high D/E from spectrum investment.
+    # DELTA/HANA: electronics manufacturing, 15-25% gross margin.
+    # ══════════════════════════════════════════════════════════════════════
+    'tech': {
+        'label': 'Tech/Telecom', 'color': '#82b1ff',
+        'note': 'Wide range: telecom (30-50% GM, high D/E for spectrum) vs electronics mfg (15-25% GM). High growth tech can trade at premium P/E.',
+        'rev_cagr_min':    8,
+        'gross_margin_min': 15,   # Electronics mfg: 15-25%; software/telecom: 35-60%
+        'net_margin_min':  6,     # Telecom after D&A: 6-18%; software: 15-30%
+        'roe_min':         12,
+        'de_max':          2.0,   # Telecom spectrum/tower debt accepted
+        'cr_min':          1.2,
+        'ic_min':          3.5,
+        'div_yield_min':   1.0,   # Growth tech reinvests; low yield acceptable
+        'pe_max':          30,    # Growth premium: 15-40× depending on growth rate
+        'pb_max':          5.0,   # Intangibles (software, spectrum) understated
+        'fcf_mode':        'all_positive',
+        'phantom_mode':    'standard',
+    },
+
+    # ══════════════════════════════════════════════════════════════════════
+    # INDUSTRIAL / MATERIALS / TRANSPORT / LOGISTICS
+    # SCC, SCGP, IVL, BTS, BEM, AOT, RCL — capital-intensive cyclicals.
+    # SCC cement: 25-35% gross margin. IVL PET resin: 8-15%.
+    # Transport (BTS, BEM): regulated, high gross margin but D/E elevated.
+    # AOT: near-monopoly airport; exceptional margin and pricing power.
+    # ══════════════════════════════════════════════════════════════════════
+    'industrial': {
+        'label': 'Industrial/Transport', 'color': '#b0bec5',
+        'note': 'Wide range: cement (25-35% GM), packaging (20-30%), PET resin (8-15%), transport (40-60% GM). D/E varies by asset intensity.',
+        'rev_cagr_min':    5,
+        'gross_margin_min': 10,   # Materials: 8-35% depending on product
+        'net_margin_min':  4,     # After heavy D&A: 4-15%
+        'roe_min':         8,
+        'de_max':          1.5,
+        'cr_min':          1.2,
+        'ic_min':          4.0,
+        'div_yield_min':   2.0,
+        'pe_max':          18,
+        'pb_max':          2.5,
+        'fcf_mode':        'avg_3y',
+        'phantom_mode':    'standard',
+    },
+
+    # ══════════════════════════════════════════════════════════════════════
+    # GENERAL FALLBACK — consumer staples, services, conglomerates
+    # For tickers not mapped to a specific sector above.
+    # ══════════════════════════════════════════════════════════════════════
     'general': {
-        'label': '🏭 Industrial/General', 'color': '#80cbc4',
-        'note': 'Standard Buffett/Graham thresholds for non-financial, non-utility businesses.',
-        'rev_cagr_min': 7,
-        'gross_margin_min': 40,
-        'net_margin_min': 10,
-        'roe_min': 15,
-        'de_max': 0.5,
-        'cr_min': 1.5,
-        'ic_min': 5,
-        'div_yield_min': 1.0,
-        'fcf_mode': 'all_positive',
-        'phantom_mode': 'standard',
+        'label': 'General', 'color': '#90caf9',
+        'note': 'General thresholds. If this stock has special sector characteristics, consider thresholds indicative only.',
+        'rev_cagr_min':    6,
+        'gross_margin_min': 20,
+        'net_margin_min':  6,
+        'roe_min':         12,
+        'de_max':          1.0,
+        'cr_min':          1.3,
+        'ic_min':          4.0,
+        'div_yield_min':   1.5,
+        'pe_max':          20,
+        'pb_max':          3.0,
+        'fcf_mode':        'all_positive',
+        'phantom_mode':    'standard',
     },
 }
 
-# Map each ticker to its sector group
+# ── Ticker → sector group mapping ──────────────────────────────────────────────
 _TICKER_TO_GROUP = {}
 for _g, _tickers in [
-    ('bank',     ['BBL','KBANK','KTB','SCB','KKP','TISCO','TTB','TCAP']),
-    ('finance',  ['KTC','MTC','TIDLOR','SAWAD','AEONTS','BAM','JMT','ASK','THRE','BLA']),
+    ('bank',     ['BBL','KBANK','KTB','SCB','BAY','KKP','TISCO','TTB','TCAP']),
+    ('finance',  ['KTC','MTC','TIDLOR','SAWAD','AEONTS','BAM','JMT','ASK','THRE','BLA','TLI']),
     ('property', ['LH','CPN','SIRI','SPALI','WHA','AWC','AP','QH','AMATA','ROJNA',
-                  'A5','CHEWA','MORE','SCGD']),
-    ('energy',   ['PTT','PTTEP','PTTGC','TOP','BANPU','BCP','BCPG','BGRIM','EA',
-                  'EGCO','GULF','GPSC','GUNKUL','CKP','RATCH','IRPC','SPRC','OR',
+                  'A5','CHEWA','MORE','SCGD','ROJNA']),
+    ('energy_upstream',  ['PTT','PTTEP','BANPU','SKR']),
+    ('energy_refining',  ['PTTGC','TOP','IRPC','SPRC','BCP','OR','IVL','TASCO']),
+    ('power',    ['BGRIM','EA','EGCO','GULF','GPSC','GUNKUL','CKP','RATCH','BCPG',
                   'BBGI','EPG','SSP','TPCH']),
+    ('healthcare',['BDMS','BH','BCH','CHG','PR9','SPA','VIH','MEGA']),
+    ('food',     ['CPF','TU','BTG','CBG','ICHI','SAPPE','SNNP','COCOCO','OSP','ITC',
+                  'PM','RBF','STA','STGT']),
+    ('commerce', ['CPALL','HMPRO','COM7','CRC','DOHOME','GLOBAL','BJC','MBK',
+                  'MASTER','KAMART','MOSHI']),
+    ('tech',     ['ADVANC','TRUE','JAS','DELTA','KCE','HANA','CCET','SKY','SISB',
+                  'ADVICE','DITTO','FORTH','MFEC','NETBAY','NEO']),
+    ('industrial',['SCC','SCGP','BTS','BEM','AOT','RCL','PRM','SJWD','AAV','BA',
+                   'TISCO','IVL','AMATA','WHA','SMPC']),
 ]:
     for _t in _tickers:
         _TICKER_TO_GROUP[_t] = _g
@@ -1535,46 +1742,80 @@ def compute_vi_scorecard(ticker):
 
     result['sections']['D']=('Governance',sec_d)
 
-    # ── E. Valuation ── (dividend yield threshold is sector-adjusted)
+    # ── E. Valuation ── (all thresholds sector-specific)
     sec_e=[]
+    pe_max  = thr.get('pe_max',  20)
+    pb_max  = thr.get('pb_max',  3.0)
+    dy_min  = thr['div_yield_min']
+
+    # Use the freshest price available: info.currentPrice > price_df latest close
+    cp = (info.get('currentPrice') or info.get('regularMarketPrice') or
+          (float(price_df['Close'].iloc[-1]) if not price_df.empty else None))
+
+    # E1. Normalized P/E (5Y median EPS removes cyclical peaks/troughs)
     try:
-        cp=price_df['Close'].iloc[-1] if not price_df.empty else None
-        sh=info.get('sharesOutstanding') or info.get('impliedSharesOutstanding')
-        ni_s2=net_income.sort_index().dropna()
-        if cp and sh and len(ni_s2)>=1:
-            mni=float(ni_s2.iloc[-5:].median()); meps=mni/float(sh)
-            npe=cp/meps if meps>0 else None; ok=npe is not None and 0<npe<20
-            sec_e.append(('Normalized P/E (5Y)','<20×',f"{npe:.1f}×" if npe else 'N/A',ok,
-                          'Median earnings removes cyclical distortion'))
+        sh = info.get('sharesOutstanding') or info.get('impliedSharesOutstanding')
+        ni_s2 = net_income.sort_index().dropna()
+        if cp and sh and len(ni_s2) >= 1:
+            mni  = float(ni_s2.iloc[-5:].median())
+            meps = mni / float(sh)
+            npe  = cp / meps if meps > 0 else None
+            ok   = npe is not None and 0 < npe < pe_max
+            sec_e.append((f'Normalized P/E (5Y median)', f'<{pe_max}×',
+                           f"{npe:.1f}×" if npe else 'N/A', ok,
+                           f'5Y median EPS removes cyclical distortion — sector ceiling {pe_max}×'))
         else: raise ValueError
-    except: sec_e.append(('Normalized P/E (5Y)','<20×','N/A',False,''))
+    except: sec_e.append(('Normalized P/E (5Y)','N/A','N/A',False,''))
+
+    # E2. Price/Book — sector-adjusted ceiling
     try:
-        pb=float(info.get('priceToBook'))
-        # P/B is especially important for banks (book value = capital base)
-        pb_note = ('For banks, P/B is the PRIMARY valuation anchor — book value = net loans + assets'
-                   if sg=='bank' else 'Graham margin of safety')
-        pb_ok = (0<pb<1.5) if sg=='bank' else (0<pb<3)
-        pb_tgt = '<1.5×' if sg=='bank' else '<3×'
-        sec_e.append(('Price/Book',pb_tgt,f"{pb:.2f}×",pb_ok,pb_note))
-    except: sec_e.append(('Price/Book','<3×','N/A',False,''))
-    dy_min=thr['div_yield_min']
-    dy=trailing_div_yield(divs,price_df)
-    sec_e.append((f'Dividend Yield',f'>{dy_min}%',
-                  f"{dy:.2f}%" if dy else 'N/A',
-                  (dy or 0)>=dy_min,
-                  'Dividends confirm real cash profits — companies paying >2% consistently are usually healthy'))
+        pb = float(info.get('priceToBook'))
+        pb_ok = 0 < pb < pb_max
+        if sg == 'bank':
+            pb_note = f'For banks, P/B is the PRIMARY anchor (book = net loan assets). Target <{pb_max}×'
+        elif sg in ('tech','healthcare'):
+            pb_note = f'Intangibles understated on balance sheet — P/B <{pb_max}× acceptable for quality growth'
+        else:
+            pb_note = f'Graham margin of safety — ceiling {pb_max}× for {thr["label"]}'
+        sec_e.append((f'Price/Book', f'<{pb_max}×', f"{pb:.2f}×", pb_ok, pb_note))
+    except: sec_e.append(('Price/Book','N/A','N/A',False,''))
+
+    # E3. Dividend yield
+    dy = trailing_div_yield(divs, price_df)
+    dy_ok = (dy or 0) >= dy_min
+    sec_e.append(('Dividend Yield', f'>{dy_min}%',
+                   f"{dy:.2f}%" if dy else 'N/A', dy_ok,
+                   'Consistent dividend = real cash profits being returned to owners'))
+
+    # E4. PEG ratio — growth at reasonable price
     try:
-        per=float(info.get('trailingPE') or info.get('forwardPE'))
-        rev2=revenue.sort_index().dropna(); n=min(5,len(rev2)-1)
-        cagr2=((rev2.iloc[-1]/rev2.iloc[-1-n])**(1/n)-1) if len(rev2)>=2 else None
-        if cagr2 and cagr2>0 and per:
-            peg=per/(cagr2*100); ok=peg<1.5
-            if peg<1.0:
-                result['red_flags'].insert(0,('💎 PEG Opportunity',
-                    f"PEG={peg:.2f} — Peter Lynch's 'growth at reasonable price' sweet spot."))
-            sec_e.append(('PEG Ratio (P/E÷growth)','<1.5',f"{peg:.2f}",ok,'Lynch: PEG<1 = paying less than growth rate'))
+        per = float(info.get('trailingPE') or info.get('forwardPE'))
+        rev2 = revenue.sort_index().dropna(); n = min(5, len(rev2)-1)
+        cagr2 = ((rev2.iloc[-1]/rev2.iloc[-1-n])**(1/n)-1) if len(rev2) >= 2 else None
+        if cagr2 and cagr2 > 0 and per:
+            peg = per / (cagr2 * 100); ok = peg < 1.5
+            if peg < 1.0:
+                result['red_flags'].insert(0,('PEG Opportunity',
+                    f"PEG={peg:.2f} — paying less than the earnings growth rate (Lynch sweet spot)"))
+            sec_e.append(('PEG (P/E ÷ rev. growth)', '<1.5', f"{peg:.2f}", ok,
+                           'PEG<1 = price below growth rate; >2 = expensive relative to growth'))
         else: raise ValueError
     except: sec_e.append(('PEG Ratio','<1.5','N/A',False,''))
+
+    # E5. EV/EBITDA — useful for capital-intensive sectors where P/E misleads
+    try:
+        ev = info.get('enterpriseValue')
+        ebitda_v = safe_row(inc,'EBITDA','Normalized EBITDA').sort_index().dropna()
+        if ev and not ebitda_v.empty:
+            ev_ebitda = float(ev) / float(ebitda_v.iloc[-1])
+            # Sector-appropriate ceiling
+            ev_ceil = 15 if sg in ('bank','finance') else (20 if sg in ('power','healthcare') else 12)
+            ok_ev = 0 < ev_ebitda < ev_ceil
+            sec_e.append((f'EV/EBITDA', f'<{ev_ceil}×', f"{ev_ebitda:.1f}×", ok_ev,
+                           'Enterprise valuation — adjusts for leverage differences between companies'))
+        else: raise ValueError
+    except: sec_e.append(('EV/EBITDA','N/A','N/A',False,''))
+
     result['sections']['E']=('Valuation',sec_e)
 
     # ── F. Cash Reality Check ── (phantom mode is sector-adjusted)
@@ -2340,9 +2581,23 @@ def main():
         st.markdown("<div style='font-size:11px;color:#484f58;margin-bottom:5px'>Any Yahoo Finance ticker</div>",unsafe_allow_html=True)
         custom_raw=st.text_input("Custom",placeholder="AAPL, TSLA, 9984.T…",key="custom_tickers",label_visibility="collapsed")
         custom_sel=[t.strip().upper() for t in custom_raw.replace(","," ").split() if t.strip()]
-        GLOBAL_SHORTCUTS={"US":["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA"],"Japan":["7203.T","9984.T","6758.T"],"Korea":["005930.KS","000660.KS"],"China":["BABA","JD","PDD","0700.HK"],"Crypto":["BTC-USD","ETH-USD"],"ETF":["SPY","QQQ","VTI","GLD"]}
+        GLOBAL_SHORTCUTS = {
+            "US Tech":     ["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","AMD","INTC","CRM","ORCL","NFLX","ADBE","QCOM"],
+            "US Finance":  ["JPM","BAC","GS","MS","V","MA","BRK-B","AXP","C","WFC","BLK"],
+            "US Health":   ["JNJ","UNH","PFE","ABBV","LLY","MRK","ABT","TMO","MDT"],
+            "US Others":   ["BRK-B","XOM","CVX","WMT","KO","PEP","MCD","DIS","BA","CAT","HON","GE"],
+            "Indices":     ["^GSPC","^DJI","^IXIC","^RUT","^FTSE","^N225","^HSI","^STI","^SET.BK","^KS11","^AXJO"],
+            "Japan":       ["7203.T","9984.T","6758.T","8306.T","6861.T","7267.T","4661.T","9432.T","8058.T","6902.T"],
+            "Korea":       ["005930.KS","000660.KS","035420.KS","051910.KS","035720.KS","068270.KS","005380.KS"],
+            "China/HK":    ["0700.HK","9988.HK","3690.HK","1299.HK","0005.HK","BABA","JD","PDD","BIDU","NIO","XPEV"],
+            "Singapore":   ["D05.SI","O39.SI","U11.SI","Z74.SI","F34.SI","C09.SI","G13.SI","BN4.SI"],
+            "Europe":      ["ASML","SAP","NVO","AZN","LVMH.PA","MC.PA","NESN.SW","NOVO-B.CO"],
+            "Crypto":      ["BTC-USD","ETH-USD","BNB-USD","SOL-USD","ADA-USD","XRP-USD","DOGE-USD"],
+            "ETF/Bond":    ["SPY","QQQ","VTI","IWM","EEM","GLD","SLV","TLT","HYG","VNQ","XLE","XLK"],
+            "Commodities": ["GC=F","SI=F","CL=F","NG=F","HG=F","ZC=F","ZS=F","KC=F"],
+        }
         gl_grp=st.selectbox("Region",["—"]+list(GLOBAL_SHORTCUTS.keys()),key="gl_grp",label_visibility="collapsed")
-        gl_sel=st.multiselect("Picks",GLOBAL_SHORTCUTS.get(gl_grp,[]),placeholder=f"{gl_grp}…",key=f"gl_ms_{gl_grp}",label_visibility="collapsed") if gl_grp and gl_grp!="—" else []
+        gl_sel=st.multiselect("Picks",GLOBAL_SHORTCUTS.get(gl_grp,[]),placeholder=f"Pick {gl_grp}…",key=f"gl_ms_{gl_grp}",label_visibility="collapsed") if gl_grp and gl_grp!="—" else []
 
         selected_base=set_sel+mai_sel+dr_sel
         selected_global=custom_sel+gl_sel
