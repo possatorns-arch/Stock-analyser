@@ -160,29 +160,26 @@ section[data-testid="stSidebar"] div[data-testid="stButton"] button div {
    TAB BAR — sticky inside its scroll container
    ══════════════════════════════════════════════════════ */
 
-/* Make the main scroll happen on the tab panel, not the outer page */
-[data-testid="stAppViewContainer"] > section > div {
-  overflow: visible !important;
+/* Sidebar must scroll freely */
+section[data-testid="stSidebar"] > div {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
-/* The tabs wrapper uses sticky within the block container */
-.stTabs {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-/* Sticky tab bar */
+/* Tab bar — sticky inside the main content area */
 .stTabs [data-baseweb="tab-list"] {
   position: sticky !important;
-  top: -14px !important;   /* offset equals block-container top padding */
+  top: 0 !important;
   z-index: 999 !important;
   background: var(--bg) !important;
   border-bottom: 1px solid var(--line) !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5) !important;
   gap: 0 !important;
   padding: 0 !important;
-  margin: 0 -28px !important;  /* full bleed across block-container padding */
-  padding: 0 28px !important;
+  margin-left: -28px !important;
+  margin-right: -28px !important;
+  padding-left: 28px !important;
+  padding-right: 28px !important;
 }
 
 /* Large click targets */
