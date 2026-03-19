@@ -28,246 +28,246 @@ st.set_page_config(page_title="SET Analyser · VI", page_icon="🏦", layout="wi
                    initial_sidebar_state="expanded")
 st.markdown("""
 <style>
-/* ── Design tokens: muted navy, single accent ── */
-:root{
-  --bg:#0d1117;       /* GitHub-dark inspired */
-  --bg2:#161b22;
-  --bg3:#1f2937;
-  --border:#21262d;
-  --border2:#30363d;
-  --txt:#e6edf3;
-  --txt2:#8b949e;
-  --txt3:#484f58;
-  --accent:#2f81f7;   /* single blue accent — less neon, more professional */
-  --green:#3fb950;
-  --yellow:#d29922;
-  --red:#f85149;
-  --radius:6px;
+/* ══════════════════════════════════════════════════════
+   DESIGN SYSTEM — One accent, two greys, semantic colors
+   ══════════════════════════════════════════════════════ */
+:root {
+  /* Backgrounds — dark slate (not pure black, easier on eyes) */
+  --bg:    #0d1117;
+  --bg2:   #161b22;
+  --bg3:   #1f2937;
+  --bg4:   #252d3a;
+
+  /* Borders */
+  --line:  #21262d;
+  --line2: #30363d;
+
+  /* Text — three weights */
+  --t1: #e6edf3;   /* primary */
+  --t2: #8b949e;   /* secondary */
+  --t3: #484f58;   /* muted */
+
+  /* Single UI accent */
+  --acc: #2f81f7;
+
+  /* Semantic data colors — ONLY for data, never UI chrome */
+  --pos: #3fb950;
+  --neg: #f85149;
+  --wrn: #d29922;
+
+  --r: 6px;  /* border-radius */
 }
 
-/* ── Base ── */
-html,body,.stApp{
-  background:var(--bg)!important;
-  color:var(--txt)!important;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif!important;
-  font-size:14px!important;
+/* ══════════════════════════════════════════════════════
+   BASE
+   ══════════════════════════════════════════════════════ */
+html, body, .stApp {
+  background: var(--bg) !important;
+  color: var(--t1) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
 }
-.block-container{padding:0 1.5rem 2rem!important;max-width:1400px!important;}
-#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stDecoration"]{display:none!important;}
-*{scrollbar-width:thin;scrollbar-color:var(--border2) var(--bg2);}
-::-webkit-scrollbar{width:6px;height:6px;}
-::-webkit-scrollbar-track{background:var(--bg);}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+.block-container {
+  padding: 12px 28px 40px !important;
+  max-width: 1360px !important;
+}
+#MainMenu, footer, [data-testid="stStatusWidget"], [data-testid="stDecoration"] {
+  display: none !important;
+}
 
-/* ── Sidebar ── */
-section[data-testid="stSidebar"]{
-  background:var(--bg2)!important;
-  border-right:1px solid var(--border)!important;}
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 3px; }
+
+/* ══════════════════════════════════════════════════════
+   SIDEBAR
+   ══════════════════════════════════════════════════════ */
+section[data-testid="stSidebar"] {
+  background: var(--bg2) !important;
+  border-right: 1px solid var(--line) !important;
+}
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] span{color:var(--txt2)!important;font-size:13px!important;}
-header[data-testid="stHeader"]{background:transparent!important;border-bottom:none!important;}
+section[data-testid="stSidebar"] span {
+  color: var(--t2) !important;
+  font-size: 13px !important;
+}
+header[data-testid="stHeader"] {
+  background: transparent !important;
+  border-bottom: none !important;
+}
 
-/* ── Sidebar toggle ── */
+/* Sidebar collapse toggle */
 [data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"]{
-  position:fixed!important;left:0!important;top:50%!important;
-  transform:translateY(-50%)!important;z-index:99999!important;
-  display:flex!important;visibility:visible!important;opacity:1!important;
-  background:var(--bg2)!important;border:1px solid var(--border2)!important;
-  border-left:none!important;border-radius:0 var(--radius) var(--radius) 0!important;
-  padding:8px 5px!important;box-shadow:2px 0 8px rgba(0,0,0,0.4)!important;cursor:pointer!important;}
+[data-testid="collapsedControl"] {
+  position: fixed !important; left: 0 !important; top: 50% !important;
+  transform: translateY(-50%) !important; z-index: 99999 !important;
+  display: flex !important; visibility: visible !important; opacity: 1 !important;
+  background: var(--bg2) !important; border: 1px solid var(--line2) !important;
+  border-left: none !important; border-radius: 0 4px 4px 0 !important;
+  padding: 8px 5px !important; cursor: pointer !important;
+}
 [data-testid="stSidebarCollapsedControl"] svg,
-[data-testid="collapsedControl"] svg{fill:var(--accent)!important;}
+[data-testid="collapsedControl"] svg { fill: var(--t2) !important; }
 
-/* ── Headings ── */
-h1,h2,h3{color:var(--txt)!important;font-weight:600!important;letter-spacing:-0.3px;}
-hr{border:none!important;border-top:1px solid var(--border)!important;margin:12px 0!important;}
+/* ══════════════════════════════════════════════════════
+   SIDEBAR SECTION LABELS
+   ══════════════════════════════════════════════════════ */
+.sidebar-label {
+  color: var(--t3) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  margin: 10px 0 5px !important;
+  display: block !important;
+}
 
-/* ═══════════════════════════════════════════════════════
-   TAB BAR — large click targets, clean underline active
-   (sticky handled by JS injection below)
-   ═══════════════════════════════════════════════════════ */
-.stTabs [data-baseweb="tab-list"]{
-  background:var(--bg)!important;
-  border-bottom:1px solid var(--border)!important;
-  gap:0!important;
-  padding:4px 0 0!important;}
-.stTabs [data-baseweb="tab"]{
-  color:var(--txt2)!important;
-  font-size:14px!important;
-  font-weight:500!important;
-  padding:11px 24px!important;
-  background:transparent!important;
-  border:none!important;
-  border-bottom:2px solid transparent!important;
-  border-radius:0!important;
-  margin-bottom:-1px!important;
-  cursor:pointer!important;
-  transition:color 0.12s;}
+/* ══════════════════════════════════════════════════════
+   SIDEBAR SECTOR BUTTONS — compact grid
+   ══════════════════════════════════════════════════════ */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
+  gap: 4px !important;
+  margin-bottom: 3px !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stButton"] {
+  margin: 0 !important; padding: 0 !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stButton"] button {
+  width: 100% !important;
+  height: 30px !important; min-height: 30px !important;
+  padding: 0 4px !important;
+  background: transparent !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 4px !important;
+  color: var(--t2) !important;
+  font-size: 12px !important; font-weight: 500 !important;
+  transition: background 0.1s, border-color 0.1s, color 0.1s !important;
+  white-space: nowrap !important; overflow: hidden !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover {
+  background: var(--bg3) !important;
+  border-color: var(--line2) !important;
+  color: var(--t1) !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stButton"] button p,
+section[data-testid="stSidebar"] div[data-testid="stButton"] button div {
+  white-space: nowrap !important; overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 12px !important; line-height: 1.2 !important;
+  font-weight: 500 !important; margin: 0 !important; padding: 0 !important;
+}
+
+/* ══════════════════════════════════════════════════════
+   TAB BAR — will be positioned by JS injection
+   ══════════════════════════════════════════════════════ */
+.stTabs [data-baseweb="tab-list"] {
+  background: var(--bg) !important;
+  border-bottom: 1px solid var(--line) !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+.stTabs [data-baseweb="tab"] {
+  color: var(--t2) !important;
+  font-size: 14px !important; font-weight: 500 !important;
+  padding: 12px 22px !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  transition: color 0.1s !important;
+}
 .stTabs [data-baseweb="tab"] p,
 .stTabs [data-baseweb="tab"] span,
-.stTabs [data-baseweb="tab"] div{
-  color:inherit!important;font-size:14px!important;font-weight:inherit!important;}
-.stTabs [data-baseweb="tab"]:hover,
-.stTabs [data-baseweb="tab"]:hover p,
-.stTabs [data-baseweb="tab"]:hover span{
-  color:var(--txt)!important;background:transparent!important;}
-/* Active tab — underline accent */
+.stTabs [data-baseweb="tab"] div { color: inherit !important; font-size: 14px !important; }
+.stTabs [data-baseweb="tab"]:hover { color: var(--t1) !important; }
 .stTabs [aria-selected="true"],
 .stTabs [aria-selected="true"] p,
 .stTabs [aria-selected="true"] span,
-.stTabs [aria-selected="true"] div{
-  color:var(--txt)!important;
-  font-weight:600!important;
-  background:transparent!important;
-  border-bottom:2px solid var(--accent)!important;}
-/* Fixed tab bar clone injected by JS — see below */
-#fixed-tabbar{
-  position:fixed!important;
-  top:0!important;left:0!important;right:0!important;
-  z-index:9999!important;
-  background:var(--bg)!important;
-  border-bottom:1px solid var(--border)!important;
-  display:none;  /* shown by JS after clone */
-  padding:4px 20px 0 268px; /* offset for sidebar + main padding */
+.stTabs [aria-selected="true"] div {
+  color: var(--t1) !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+  border-bottom: 2px solid var(--acc) !important;
 }
-#fixed-tabbar button{
-  color:var(--txt2);font-size:14px;font-weight:500;
-  padding:11px 24px;background:transparent;border:none;
-  border-bottom:2px solid transparent;cursor:pointer;
-  transition:color 0.12s;}
-#fixed-tabbar button:hover{color:var(--txt);}
-#fixed-tabbar button.tab-active{
-  color:var(--txt);font-weight:600;
-  border-bottom:2px solid var(--accent);}
 
-/* ═══════════════════════════════════════════════════════
-   SIDEBAR SECTOR BUTTONS
-   ═══════════════════════════════════════════════════════ */
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
-  gap:3px!important;
-  margin-bottom:3px!important;}
-section[data-testid="stSidebar"] div[data-testid="stButton"]{
-  margin:0!important;padding:0!important;}
-section[data-testid="stSidebar"] div[data-testid="stButton"] button{
-  padding:6px 2px!important;
-  border-radius:5px!important;
-  width:100%!important;
-  height:32px!important;min-height:32px!important;
-  background:transparent!important;
-  border:1px solid var(--border2)!important;
-  color:var(--txt2)!important;
-  font-size:12px!important;font-weight:500!important;
-  transition:all 0.1s ease!important;}
-section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover{
-  background:var(--bg3)!important;
-  border-color:var(--accent)!important;
-  color:var(--txt)!important;}
-section[data-testid="stSidebar"] div[data-testid="stButton"] button p,
-section[data-testid="stSidebar"] div[data-testid="stButton"] button div{
-  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
-  font-size:12px!important;line-height:1.2!important;font-weight:500!important;
-  margin:0!important;padding:0!important;}
+/* ══════════════════════════════════════════════════════
+   BUTTONS — main content
+   ══════════════════════════════════════════════════════ */
+.stButton > button {
+  background: var(--bg3) !important;
+  color: var(--t2) !important;
+  border: 1px solid var(--line2) !important;
+  border-radius: var(--r) !important;
+  font-size: 13px !important; font-weight: 500 !important;
+  padding: 7px 16px !important;
+  transition: all 0.1s ease !important;
+}
+.stButton > button:hover {
+  background: var(--bg4) !important;
+  border-color: var(--t3) !important;
+  color: var(--t1) !important;
+}
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="baseButton-primary"] {
+  background: var(--acc) !important;
+  border-color: var(--acc) !important;
+  color: #fff !important; font-weight: 600 !important;
+}
+.stButton > button[kind="primary"]:hover { filter: brightness(1.1) !important; }
 
-/* ═══════════════════════════════════════════════════════
-   MAIN CONTENT BUTTONS
-   ═══════════════════════════════════════════════════════ */
-.stButton>button{
-  background:var(--bg2)!important;
-  color:var(--txt2)!important;
-  border:1px solid var(--border2)!important;
-  border-radius:var(--radius)!important;
-  font-size:13px!important;font-weight:500!important;
-  padding:8px 16px!important;
-  transition:all 0.1s ease!important;}
-.stButton>button:hover{
-  background:var(--bg3)!important;
-  border-color:var(--accent)!important;
-  color:var(--txt)!important;}
-.stButton>button[kind="primary"],
-.stButton>button[data-testid="baseButton-primary"]{
-  background:var(--accent)!important;
-  border-color:var(--accent)!important;
-  color:#fff!important;font-weight:600!important;}
-.stButton>button[kind="primary"]:hover{
-  filter:brightness(1.1)!important;}
-
-/* ═══════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════
    INPUTS
-   ═══════════════════════════════════════════════════════ */
-.stSelectbox>div>div,.stMultiSelect>div>div,
-.stTextInput>div>div,.stNumberInput>div>div{
-  background:var(--bg2)!important;
-  border:1px solid var(--border2)!important;
-  color:var(--txt)!important;
-  border-radius:var(--radius)!important;
-  font-size:13px!important;}
-span[data-baseweb="tag"]{
-  background:rgba(47,129,247,0.15)!important;
-  border:1px solid rgba(47,129,247,0.4)!important;
-  color:var(--accent)!important;border-radius:4px!important;}
-[data-baseweb="popover"] ul{background:var(--bg2)!important;border:1px solid var(--border2)!important;}
-[data-baseweb="popover"] li{color:var(--txt)!important;font-size:13px!important;}
-[data-baseweb="popover"] li:hover{background:var(--bg3)!important;}
+   ══════════════════════════════════════════════════════ */
+.stSelectbox > div > div,
+.stMultiSelect > div > div,
+.stTextInput > div > div,
+.stNumberInput > div > div {
+  background: var(--bg2) !important;
+  border: 1px solid var(--line2) !important;
+  color: var(--t1) !important;
+  border-radius: var(--r) !important;
+  font-size: 13px !important;
+}
+span[data-baseweb="tag"] {
+  background: rgba(47,129,247,0.12) !important;
+  border: 1px solid rgba(47,129,247,0.3) !important;
+  color: var(--acc) !important; border-radius: 4px !important;
+}
+[data-baseweb="popover"] ul {
+  background: var(--bg2) !important;
+  border: 1px solid var(--line2) !important;
+}
+[data-baseweb="popover"] li {
+  color: var(--t1) !important; font-size: 13px !important;
+}
+[data-baseweb="popover"] li:hover { background: var(--bg3) !important; }
 
-/* ── Sidebar label ── */
-.sidebar-label{
-  color:var(--txt3)!important;
-  font-size:10px!important;font-weight:700!important;
-  text-transform:uppercase!important;letter-spacing:1.2px!important;
-  margin:8px 0 4px!important;display:block!important;}
-
-/* ── Progress / metric ── */
-.stProgress>div>div>div{background:var(--accent)!important;}
-div[data-testid="metric-container"]{
-  background:var(--bg2)!important;
-  border:1px solid var(--border)!important;
-  border-radius:var(--radius)!important;}
-</style>
-<div id="fixed-tabbar"></div>
-<script>
-(function fixTabs(){
-  // Wait for Streamlit to render tab bar
-  const MAX = 60; let n = 0;
-  function tryClone(){
-    const tabList = document.querySelector('[data-baseweb="tab-list"]');
-    if (!tabList){ if(n++<MAX) setTimeout(tryClone,200); return; }
-
-    const bar = document.getElementById('fixed-tabbar');
-    bar.innerHTML = '';
-    // Clone each tab as a plain button
-    tabList.querySelectorAll('[data-baseweb="tab"]').forEach((tab,i)=>{
-      const btn = document.createElement('button');
-      btn.textContent = tab.textContent.trim();
-      if(tab.getAttribute('aria-selected')==='true') btn.classList.add('tab-active');
-      btn.onclick = ()=>{ tab.click(); updateActive(); };
-      bar.appendChild(btn);
-    });
-    bar.style.display='flex';
-    bar.style.alignItems='center';
-
-    // Add top padding to main content so it's not hidden behind fixed bar
-    const mainContent = document.querySelector('.block-container') ||
-                        document.querySelector('[data-testid="stAppViewContainer"]');
-    if(mainContent) mainContent.style.paddingTop='50px';
-
-    // Observe tab selection changes
-    function updateActive(){
-      setTimeout(()=>{
-        const tabs = tabList.querySelectorAll('[data-baseweb="tab"]');
-        bar.querySelectorAll('button').forEach((btn,i)=>{
-          btn.classList.toggle('tab-active', tabs[i]?.getAttribute('aria-selected')==='true');
-        });
-      },150);
-    }
-    const obs = new MutationObserver(updateActive);
-    obs.observe(tabList, {attributes:true, subtree:true, attributeFilter:['aria-selected']});
-  }
-  setTimeout(tryClone, 600);
-})();
-</script>
-""", unsafe_allow_html=True)
+/* ══════════════════════════════════════════════════════
+   MISC
+   ══════════════════════════════════════════════════════ */
+h1, h2, h3 {
+  color: var(--t1) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.3px !important;
+}
+hr {
+  border: none !important;
+  border-top: 1px solid var(--line) !important;
+  margin: 10px 0 !important;
+}
+.stProgress > div > div > div { background: var(--acc) !important; }
+div[data-testid="metric-container"] {
+  background: var(--bg2) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r) !important;
+}
+</style>""", unsafe_allow_html=True)
 
 # ─── Universe ──────────────────────────────────────────────────────────────────
 SET100 = [
@@ -327,6 +327,16 @@ SECTOR_ICONS = {
     "Industrial":   ("🔧","Indus"),
     "Transport":    ("✈️","Trans"),
     "Media/Leisure":("🎬","Media"),
+    # MAI-specific sectors
+    "Media":    ("","Media"),
+    "Other":    ("","Other"),
+    "Tech":     ("","Tech"),
+    "Finance":  ("","Finance"),
+    "Property": ("","Property"),
+    "Energy":   ("","Energy"),
+    "Healthcare":("","Health"),
+    "Commerce": ("","Commerce"),
+    "Food":     ("","Food"),
 }
 
 # MAI sector mapping
@@ -1643,24 +1653,32 @@ def render_vi_scorecard_st(res):
     else:                      verdict='❌ Avoid';               vc='#ef5350'
 
     SC={'A':'#2f81f7','B':'#3fb950','C':'#d29922','D':'#8b949e','E':'#a371f7','F':'#f0883e'}
-    col1,col2=st.columns([3,1])
-    with col1:
-        st.markdown(f"<h3 style='color:var(--txt);margin:0;font-size:16px;font-weight:600'>{ticker} · VI Scorecard</h3>",unsafe_allow_html=True)
-        # Sector badge
-        sc=prof.get('color','#80cbc4')
-        st.markdown(
-            f"<div style='display:inline-flex;align-items:center;gap:8px;margin:4px 0 6px'>"
-            f"<span style='background:rgba(0,0,0,0.3);border:1px solid {sc};border-radius:12px;"
-            f"padding:2px 10px;color:{sc};font-size:11px;font-weight:700'>{prof['label']}</span>"
-            f"<span style='color:#3a5070;font-size:10px'>{prof['note']}</span></div>",
-            unsafe_allow_html=True)
-        st.caption("Sector-adjusted · 5-section · Beneish governance model")
-    with col2:
-        st.markdown(f"<div style='text-align:right'>"
-                    f"<span style='font-size:22px;font-weight:bold;color:{vc}'>{overall:.0f}%</span>"
-                    f"<br><span style='color:{vc};font-size:13px'>{verdict}</span>"
-                    f"<br><span style='color:#555;font-size:10px'>{tp}/{tn} criteria passed</span></div>",
-                    unsafe_allow_html=True)
+    # Header bar
+    base_disp = ticker.replace('.BK','') if ticker.endswith('.BK') else ticker
+    sc=prof.get('color','#8b949e')
+    vc_bg = 'rgba(63,185,80,0.1)' if vc=='#3fb950' else ('rgba(248,81,73,0.1)' if vc=='#f85149' else 'rgba(210,153,34,0.1)')
+    st.markdown(f"""
+<div style='display:flex;align-items:flex-start;justify-content:space-between;
+            padding:16px 20px;background:#161b22;border:1px solid #21262d;
+            border-radius:8px;margin-bottom:16px'>
+  <div>
+    <div style='font-size:18px;font-weight:700;color:#e6edf3;letter-spacing:-0.3px'>
+      {base_disp}
+      <span style='font-size:13px;font-weight:400;color:#8b949e;margin-left:8px'>VI Scorecard</span>
+    </div>
+    <div style='margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap'>
+      <span style='border:1px solid {sc};border-radius:4px;padding:2px 8px;
+                   color:{sc};font-size:11px;font-weight:600'>{prof["label"]}</span>
+      <span style='color:#484f58;font-size:11px'>{prof["note"][:80]}{"…" if len(prof["note"])>80 else ""}</span>
+    </div>
+  </div>
+  <div style='text-align:right;flex-shrink:0;margin-left:20px'>
+    <div style='font-size:32px;font-weight:700;color:{vc};letter-spacing:-1px'>{overall:.0f}<span style='font-size:16px'>%</span></div>
+    <div style='font-size:12px;font-weight:600;color:{vc};margin-top:2px;
+                background:{vc_bg};padding:2px 8px;border-radius:4px'>{verdict}</div>
+    <div style='font-size:11px;color:#484f58;margin-top:4px'>{tp}/{tn} passed</div>
+  </div>
+</div>""", unsafe_allow_html=True)
 
     # ── Radar / Polygon chart ──────────────────────────────────────────────────
     axes_order = [('A','Quality'),('B','Health'),('C','Integrity'),('D','Governance'),('E','Value')]
@@ -1716,22 +1734,22 @@ def render_vi_scorecard_st(res):
     with left_col:
         st.markdown(svg_html, unsafe_allow_html=True)
     with right_col:
-        # Score bars
+        st.markdown("<div style='padding:8px 0'>",unsafe_allow_html=True)
         for sid, lbl in axes_order:
             p,n,pct = sec_scores.get(sid,(0,0,0))
-            bc = '#4ecca3' if pct>=70 else ('#f0c040' if pct>=50 else '#ef5350')
-            col_c = SC.get(sid,'#aaa')
+            bc = '#3fb950' if pct>=70 else ('#d29922' if pct>=50 else '#f85149')
             st.markdown(
-                f"<div style='margin-bottom:8px'>"
-                f"<div style='display:flex;justify-content:space-between;margin-bottom:3px'>"
-                f"<span style='color:{col_c};font-size:12px;font-weight:700'>{lbl}</span>"
-                f"<span style='color:{bc};font-size:12px;font-weight:700'>{pct:.0f}%</span>"
+                f"<div style='margin-bottom:14px'>"
+                f"<div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px'>"
+                f"<span style='color:#8b949e;font-size:13px;font-weight:500'>{lbl}</span>"
+                f"<span style='color:{bc};font-size:14px;font-weight:700;font-variant-numeric:tabular-nums'>{pct:.0f}%</span>"
                 f"</div>"
-                f"<div style='background:#0e1628;border-radius:4px;height:8px'>"
-                f"<div style='width:{pct:.0f}%;height:8px;background:{bc};border-radius:4px'></div>"
+                f"<div style='background:#21262d;border-radius:3px;height:5px'>"
+                f"<div style='width:{pct:.0f}%;height:5px;background:{bc};border-radius:3px'></div>"
                 f"</div></div>",
                 unsafe_allow_html=True)
-    st.markdown("---")
+        st.markdown("</div>",unsafe_allow_html=True)
+    st.markdown("<hr style='margin:12px 0'>",unsafe_allow_html=True)
     if cycle_flags:
         items="  ·  ".join(f"📉 {f['label']}: recent {f['recent']:.1f}% vs 5Y median {f['hist']:.1f}% ({f['pct']:+.1f}pp)" for f in cycle_flags)
         st.info(f"🔄 **Cycle Detector** — {items}")
@@ -1744,11 +1762,12 @@ def render_vi_scorecard_st(res):
         rows=""
         for lbl,tgt,val,ok,expl in crit:
             ic='✅' if ok else '❌'; rb='#0b1a10' if ok else '#1a0b0b'; vc2='#4ecca3' if ok else '#ef5350'
-            rows+=(f"<tr style='background:{rb}'>"
-                   f"<td style='padding:5px 8px;color:#ddd;font-size:11px'>{ic} {lbl}</td>"
-                   f"<td style='padding:5px 8px;color:#666;font-size:10px'>{expl}</td>"
-                   f"<td style='padding:5px 8px;color:#888;font-size:10px;text-align:center'>{tgt}</td>"
-                   f"<td style='padding:5px 8px;color:{vc2};font-size:11px;font-weight:bold;text-align:right;font-family:monospace;white-space:nowrap'>{val}</td></tr>")
+            rows+=(f"<tr style='background:{rb};border-bottom:1px solid #21262d'>"
+                   f"<td style='padding:7px 12px;color:#e6edf3;font-size:13px;white-space:nowrap'>"
+                   f"<span style='color:{vc2};margin-right:6px;font-size:11px'>{ic}</span>{lbl}</td>"
+                   f"<td style='padding:7px 12px;color:#484f58;font-size:12px'>{expl}</td>"
+                   f"<td style='padding:7px 12px;color:#484f58;font-size:12px;text-align:center;white-space:nowrap'>{tgt}</td>"
+                   f"<td style='padding:7px 12px;color:{vc2};font-size:13px;font-weight:600;text-align:right;font-family:ui-monospace,monospace;white-space:nowrap'>{val}</td></tr>")
         sc_color=SC.get(sid,'#aaa')
         st.markdown(
             f"<div style='margin-bottom:12px'>"
@@ -2137,9 +2156,10 @@ def _build_screener_page(rows):
 </div></body></html>""", height
 
 def show_screener_tab():
-    st.markdown("<h3 style='margin-bottom:2px;font-size:18px;font-weight:600'>Screener</h3>"
-                "<p style='color:#3a5070;font-size:13px;margin:0 0 16px'>Batch VI-scorecard across SET100 / MAI. "
-                "Thresholds auto-adjust per sector. Green ≥72% · yellow ≥55% · red below.</p>",unsafe_allow_html=True)
+    st.markdown("""<div style='margin-bottom:16px'>
+<div style='font-size:18px;font-weight:600;color:#e6edf3;margin-bottom:4px'>Screener</div>
+<div style='font-size:13px;color:#484f58'>Batch analysis across SET100 / MAI. Thresholds sector-adjusted. ≥72% strong · ≥55% research · below avoid.</div>
+</div>""",unsafe_allow_html=True)
     c1,c2,c3,c4=st.columns([2,2,1,1])
     with c1: universe=st.selectbox("Universe",["SET100","MAI","SET100 + MAI"],key="scr_uni")
     with c2: sector_f=st.selectbox("Sector",["All Sectors"]+sorted(SECTOR_MAP.keys()),key="scr_sec")
@@ -2230,9 +2250,10 @@ def main():
     if 'mai_sec' not in st.session_state: st.session_state['mai_sec'] = 'All'
 
     with st.sidebar:
-        st.markdown("<div style='padding:4px 0 12px'>"
-                    "<div style='color:var(--txt);font-size:17px;font-weight:700;letter-spacing:-0.4px'>SET Analyser</div>"
-                    "<div style='color:var(--txt3);font-size:11px;margin-top:2px;font-weight:400'>Value Investor Edition</div></div>",unsafe_allow_html=True)
+        st.markdown("""<div style='padding:6px 0 14px;border-bottom:1px solid #21262d;margin-bottom:8px'>
+<div style='font-size:15px;font-weight:700;letter-spacing:-0.3px;color:#e6edf3'>SET Analyser</div>
+<div style='font-size:11px;color:#484f58;margin-top:2px'>Value Investor Edition</div>
+</div>""",unsafe_allow_html=True)
 
         # ── SET100 section ──────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'>SET 100</div>",unsafe_allow_html=True)
@@ -2244,10 +2265,10 @@ def main():
             row_keys=sector_keys[row_start:row_start+3]
             btn_cols=st.columns(3)
             for ci,sk in enumerate(row_keys):
-                ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:5]))
+                ico,lbl=SECTOR_ICONS.get(sk,("",sk[:7]))
                 is_active=(sk==active_sec)
                 with btn_cols[ci]:
-                    if st.button(f"{ico} {lbl}",key=f"sec_btn_{sk}",help=sk,use_container_width=True):
+                    if st.button(lbl if not ico else f"{ico} {lbl}",key=f"sec_btn_{sk}",help=sk,use_container_width=True):
                         st.session_state['sb_sec']=sk if sk!=active_sec else 'All'
                         if 'set_ms' in st.session_state: del st.session_state['set_ms']
                         st.rerun()
@@ -2277,10 +2298,10 @@ def main():
             mrow_keys=mai_sec_keys[mrow_start:mrow_start+3]
             mai_cols=st.columns(3)
             for ci,sk in enumerate(mrow_keys):
-                ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:5]))
+                ico,lbl=SECTOR_ICONS.get(sk,("",sk[:7]))
                 is_active=(sk==active_mai)
                 with mai_cols[ci]:
-                    if st.button(f"{ico} {lbl}",key=f"mai_btn_{sk}",help=sk,use_container_width=True):
+                    if st.button(lbl if not ico else f"{ico} {lbl}",key=f"mai_btn_{sk}",help=sk,use_container_width=True):
                         st.session_state['mai_sec']=sk if sk!=active_mai else 'All'
                         if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
                         st.rerun()
@@ -2358,6 +2379,45 @@ def main():
 
     TABS=["Screener","Price","Financials","Fundamentals","VI Score","News"]
     tabs=st.tabs(TABS)
+
+    # ── Inject JS to freeze the tab bar via components.html ──────────────────────
+    # st.markdown strips <script>; components.html runs in parent window via postMessage
+    _components.html("""
+<script>
+(function(){
+  function patchTabs(){
+    // Access parent Streamlit window
+    const win = window.parent;
+    const doc = win.document;
+    const tabList = doc.querySelector('[data-baseweb="tab-list"]');
+    if(!tabList){ setTimeout(patchTabs,300); return; }
+
+    // Make it fixed
+    tabList.style.cssText += `
+      position:fixed!important;
+      top:0!important;left:0!important;right:0!important;
+      z-index:9999!important;
+      background:#0d1117!important;
+      border-bottom:1px solid #21262d!important;
+      padding:4px 0 0 0!important;
+      box-shadow:0 1px 8px rgba(0,0,0,0.5)!important;
+    `;
+
+    // Pad the main content block so tabs don't overlap content
+    const container = doc.querySelector('.block-container');
+    if(container) container.style.paddingTop='56px';
+
+    // Also adjust sidebar width offset
+    const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+    if(sidebar){
+      const sbW = sidebar.getBoundingClientRect().width;
+      tabList.style.left = sbW+'px';
+    }
+  }
+  setTimeout(patchTabs, 800);
+})();
+</script>
+""", height=0, scrolling=False)
     def _need_selection():
         st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:36px;text-align:center;margin-top:20px'>"
                     "<div style='font-size:36px'>←</div><div style='color:#00c8f8;font-size:16px;margin:10px 0 6px;font-weight:600'>Pick a stock in the sidebar</div>"
