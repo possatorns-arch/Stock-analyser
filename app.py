@@ -28,95 +28,185 @@ st.set_page_config(page_title="SET Analyser · VI", page_icon="🏦", layout="wi
                    initial_sidebar_state="expanded")
 st.markdown("""
 <style>
+/* ── Design tokens: muted navy, single accent ── */
 :root{
-  --bg:#0b1120; --bg2:#111a2e; --bg3:#172038;
-  --border:#1e3358; --border2:#2a4570;
-  --txt:#dce9ff; --txt2:#8ba8cc; --txt3:#4a6480;
-  --accent:#00c8f8; --green:#22d68a; --yellow:#f5c842;
-  --red:#ff5566; --radius:8px;
+  --bg:#0d1117;       /* GitHub-dark inspired */
+  --bg2:#161b22;
+  --bg3:#1f2937;
+  --border:#21262d;
+  --border2:#30363d;
+  --txt:#e6edf3;
+  --txt2:#8b949e;
+  --txt3:#484f58;
+  --accent:#2f81f7;   /* single blue accent — less neon, more professional */
+  --green:#3fb950;
+  --yellow:#d29922;
+  --red:#f85149;
+  --radius:6px;
 }
-html,body,.stApp{background:var(--bg)!important;color:var(--txt)!important;font-family:system-ui,sans-serif!important;}
-.block-container{padding:1.2rem 2rem 2rem!important;max-width:1440px!important;}
-#MainMenu,footer,[data-testid="stStatusWidget"]{visibility:hidden!important;}
-[data-testid="stDecoration"]{display:none!important;}
+
+/* ── Base ── */
+html,body,.stApp{
+  background:var(--bg)!important;
+  color:var(--txt)!important;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif!important;
+  font-size:14px!important;
+}
+.block-container{padding:0 1.5rem 2rem!important;max-width:1400px!important;}
+#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stDecoration"]{display:none!important;}
 *{scrollbar-width:thin;scrollbar-color:var(--border2) var(--bg2);}
-::-webkit-scrollbar{width:7px;height:7px;background:var(--bg2);}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
-::-webkit-scrollbar-thumb:hover{background:var(--accent);}
-section[data-testid="stSidebar"]{background:var(--bg2)!important;border-right:1px solid var(--border)!important;}
-section[data-testid="stSidebar"] label,section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] span{color:var(--txt2)!important;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+/* ── Sidebar ── */
+section[data-testid="stSidebar"]{
+  background:var(--bg2)!important;
+  border-right:1px solid var(--border)!important;}
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span{color:var(--txt2)!important;font-size:13px!important;}
 header[data-testid="stHeader"]{background:transparent!important;border-bottom:none!important;}
-[data-testid="stSidebarCollapsedControl"]{
-  position:fixed!important;left:0!important;top:50%!important;
-  transform:translateY(-50%)!important;z-index:99999!important;
-  display:flex!important;visibility:visible!important;opacity:1!important;
-  background:var(--bg2)!important;border:1px solid var(--border2)!important;
-  border-left:none!important;border-radius:0 var(--radius) var(--radius) 0!important;
-  padding:10px 6px!important;box-shadow:3px 0 12px rgba(0,0,0,0.5)!important;cursor:pointer!important;}
-[data-testid="stSidebarCollapsedControl"]:hover{background:var(--bg3)!important;border-color:var(--accent)!important;}
-[data-testid="stSidebarCollapsedControl"] svg,[data-testid="stSidebarCollapsedControl"] button svg{fill:var(--accent)!important;stroke:var(--accent)!important;}
+
+/* ── Sidebar toggle ── */
+[data-testid="stSidebarCollapsedControl"],
 [data-testid="collapsedControl"]{
   position:fixed!important;left:0!important;top:50%!important;
   transform:translateY(-50%)!important;z-index:99999!important;
   display:flex!important;visibility:visible!important;opacity:1!important;
   background:var(--bg2)!important;border:1px solid var(--border2)!important;
   border-left:none!important;border-radius:0 var(--radius) var(--radius) 0!important;
-  padding:10px 6px!important;box-shadow:3px 0 12px rgba(0,0,0,0.5)!important;cursor:pointer!important;}
-[data-testid="collapsedControl"]:hover{background:var(--bg3)!important;border-color:var(--accent)!important;}
+  padding:8px 5px!important;box-shadow:2px 0 8px rgba(0,0,0,0.4)!important;cursor:pointer!important;}
+[data-testid="stSidebarCollapsedControl"] svg,
 [data-testid="collapsedControl"] svg{fill:var(--accent)!important;}
-h1,h2,h3{color:var(--accent)!important;font-weight:800!important;}
-hr{border:none!important;border-top:1px solid var(--border)!important;margin:14px 0!important;}
-/* Tab bar — sticky at top */
+
+/* ── Headings ── */
+h1,h2,h3{color:var(--txt)!important;font-weight:600!important;letter-spacing:-0.3px;}
+hr{border:none!important;border-top:1px solid var(--border)!important;margin:12px 0!important;}
+
+/* ═══════════════════════════════════════════════════════
+   TAB BAR — sticky, fills width, GitHub-style active state
+   ═══════════════════════════════════════════════════════ */
+/* Wrap the entire tabs block so sticky works */
+div[data-testid="stTabs"]{position:relative;}
 .stTabs [data-baseweb="tab-list"]{
-  gap:0!important;border-bottom:2px solid var(--border)!important;
+  position:sticky!important;
+  top:0!important;
+  z-index:200!important;
   background:var(--bg)!important;
-  position:sticky!important;top:0!important;z-index:100!important;
-  padding:0 4px!important;}
+  border-bottom:1px solid var(--border)!important;
+  gap:0!important;
+  padding:6px 0 0!important;
+  margin:0!important;}
 .stTabs [data-baseweb="tab"]{
-  color:var(--txt2)!important;font-size:13px!important;font-weight:600!important;
-  padding:9px 16px!important;background:transparent!important;
-  border-radius:6px 6px 0 0!important;margin-right:2px!important;}
-.stTabs [data-baseweb="tab"] p,.stTabs [data-baseweb="tab"] span,.stTabs [data-baseweb="tab"] div{
-  color:var(--txt2)!important;font-size:13px!important;font-weight:600!important;}
-.stTabs [data-baseweb="tab"]:hover,.stTabs [data-baseweb="tab"]:hover p,.stTabs [data-baseweb="tab"]:hover span{
-  color:var(--accent)!important;background:var(--bg3)!important;}
-/* Active tab — filled highlight pill style */
-.stTabs [aria-selected="true"],.stTabs [aria-selected="true"] p,
-.stTabs [aria-selected="true"] span,.stTabs [aria-selected="true"] div{
-  color:var(--accent)!important;background:#0a1e38!important;
-  border:1px solid var(--accent)!important;border-radius:6px 6px 0 0!important;
-  margin-bottom:-2px!important;font-weight:700!important;}
-.stButton>button{background:var(--bg3)!important;color:var(--txt)!important;border:1px solid var(--border2)!important;border-radius:var(--radius)!important;font-size:13px!important;font-weight:600!important;}
-.stButton>button:hover{border-color:var(--accent)!important;color:var(--accent)!important;}
-.stButton>button[kind="primary"],.stButton>button[data-testid="baseButton-primary"]{background:#0e2850!important;border-color:var(--accent)!important;color:var(--accent)!important;font-weight:700!important;}
-.stSelectbox>div>div,.stMultiSelect>div>div,.stTextInput>div>div,.stNumberInput>div>div{background:var(--bg2)!important;border:1px solid var(--border2)!important;color:var(--txt)!important;border-radius:var(--radius)!important;}
-span[data-baseweb="tag"]{background:rgba(0,200,248,0.15)!important;border:1px solid rgba(0,200,248,0.35)!important;color:var(--accent)!important;border-radius:4px!important;}
-[data-baseweb="popover"] ul{background:var(--bg2)!important;border:1px solid var(--border2)!important;}
-[data-baseweb="popover"] li{color:var(--txt)!important;}
-[data-baseweb="popover"] li:hover{background:var(--bg3)!important;}
-.stProgress>div>div>div{background:linear-gradient(90deg,var(--accent),var(--green))!important;}
-div[data-testid="metric-container"]{background:var(--bg2)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
-.sidebar-label{color:var(--txt2)!important;font-size:11px!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:1px!important;margin-bottom:6px!important;}
-/* Sector icon buttons — tight grid, no gap */
-section[data-testid="stSidebar"] div[data-testid="stButton"]{margin:0!important;padding:0!important;}
+  color:var(--txt2)!important;
+  font-size:13px!important;
+  font-weight:500!important;
+  padding:8px 20px!important;
+  background:transparent!important;
+  border:none!important;
+  border-bottom:2px solid transparent!important;
+  border-radius:0!important;
+  margin-bottom:-1px!important;
+  transition:color 0.15s,border-color 0.15s;}
+.stTabs [data-baseweb="tab"] p,
+.stTabs [data-baseweb="tab"] span,
+.stTabs [data-baseweb="tab"] div{
+  color:inherit!important;font-size:13px!important;font-weight:inherit!important;}
+.stTabs [data-baseweb="tab"]:hover,
+.stTabs [data-baseweb="tab"]:hover p{color:var(--txt)!important;}
+/* Active tab: underline only (GitHub / Linear style) */
+.stTabs [aria-selected="true"],
+.stTabs [aria-selected="true"] p,
+.stTabs [aria-selected="true"] span,
+.stTabs [aria-selected="true"] div{
+  color:var(--txt)!important;
+  font-weight:600!important;
+  background:transparent!important;
+  border-bottom:2px solid var(--accent)!important;
+  border-top:none!important;border-left:none!important;border-right:none!important;}
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR SECTOR BUTTONS — tight grid, solid active fill
+   ═══════════════════════════════════════════════════════ */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
+  gap:4px!important;
+  margin-bottom:2px!important;}
+section[data-testid="stSidebar"] div[data-testid="stButton"]{
+  margin:0!important;padding:0!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button{
-  padding:5px 2px!important;border-radius:5px!important;margin:1px 0!important;
-  min-height:28px!important;height:28px!important;
-  background:#0d1628!important;border:1px solid #1e3358!important;color:#5a7090!important;}
+  padding:5px 4px!important;
+  border-radius:5px!important;
+  width:100%!important;
+  height:30px!important;min-height:30px!important;
+  background:var(--bg3)!important;
+  border:1px solid var(--border2)!important;
+  color:var(--txt2)!important;
+  font-size:11.5px!important;font-weight:500!important;
+  transition:all 0.12s ease!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover{
-  background:#0a1e38!important;border-color:#00c8f8!important;color:#c8e8ff!important;}
+  background:#1f3a5f!important;
+  border-color:var(--accent)!important;
+  color:var(--txt)!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button p,
 section[data-testid="stSidebar"] div[data-testid="stButton"] button div{
   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
-  font-size:11px!important;line-height:1!important;font-weight:600!important;
+  font-size:11.5px!important;line-height:1.1!important;font-weight:500!important;
   margin:0!important;padding:0!important;}
-/* Tighter column gaps in sidebar */
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{gap:3px!important;}
-/* Plotly chart background */
-.js-plotly-plot .plotly .bg{fill:#0b1120!important;}
-.modebar{background:rgba(11,17,32,0.8)!important;}
-.modebar-btn svg{fill:#8ba8cc!important;}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN CONTENT BUTTONS (screener filter etc)
+   ═══════════════════════════════════════════════════════ */
+.stButton>button{
+  background:var(--bg3)!important;
+  color:var(--txt2)!important;
+  border:1px solid var(--border2)!important;
+  border-radius:var(--radius)!important;
+  font-size:13px!important;font-weight:500!important;
+  transition:all 0.12s ease!important;}
+.stButton>button:hover{
+  background:#1f3a5f!important;
+  border-color:var(--accent)!important;
+  color:var(--txt)!important;}
+.stButton>button[kind="primary"],
+.stButton>button[data-testid="baseButton-primary"]{
+  background:var(--accent)!important;
+  border-color:var(--accent)!important;
+  color:#fff!important;font-weight:600!important;}
+.stButton>button[kind="primary"]:hover{
+  background:#388bfd!important;}
+
+/* ═══════════════════════════════════════════════════════
+   INPUTS
+   ═══════════════════════════════════════════════════════ */
+.stSelectbox>div>div,.stMultiSelect>div>div,
+.stTextInput>div>div,.stNumberInput>div>div{
+  background:var(--bg2)!important;
+  border:1px solid var(--border2)!important;
+  color:var(--txt)!important;
+  border-radius:var(--radius)!important;
+  font-size:13px!important;}
+span[data-baseweb="tag"]{
+  background:rgba(47,129,247,0.15)!important;
+  border:1px solid rgba(47,129,247,0.4)!important;
+  color:var(--accent)!important;border-radius:4px!important;}
+[data-baseweb="popover"] ul{background:var(--bg2)!important;border:1px solid var(--border2)!important;}
+[data-baseweb="popover"] li{color:var(--txt)!important;font-size:13px!important;}
+[data-baseweb="popover"] li:hover{background:var(--bg3)!important;}
+
+/* ── Sidebar label ── */
+.sidebar-label{
+  color:var(--txt3)!important;
+  font-size:10px!important;font-weight:700!important;
+  text-transform:uppercase!important;letter-spacing:1.2px!important;
+  margin:8px 0 4px!important;display:block!important;}
+
+/* ── Progress / metric ── */
+.stProgress>div>div>div{background:var(--accent)!important;}
+div[data-testid="metric-container"]{
+  background:var(--bg2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;}
 </style>""", unsafe_allow_html=True)
 
 # ─── Universe ──────────────────────────────────────────────────────────────────
@@ -1260,10 +1350,10 @@ def compute_vi_scorecard(ticker):
     # Beneish M-Score
     m,ml,mc=compute_beneish(inc,bal,cf); m_ok=m is not None and m<=-2.22
     if m is not None and m>-1.78:
-        result['red_flags'].append(('🚨 Beneish M-Score Alert',
-            f"M={m:.3f} — above −1.78 threshold. One of 8 accounting ratio signals elevated."))
+        result['red_flags'].append(('🚨 Governance Alert',
+            f"Beneish M={m:.3f} — above −1.78. Elevated accounting manipulation risk."))
     elif m is not None and m>-2.22:
-        result['red_flags'].append(('⚠️ Beneish Grey Zone',f"M={m:.3f}. Monitor but not conclusive."))
+        result['red_flags'].append(('⚠️ Governance Watch',f"Beneish M={m:.3f}. Ambiguous signal — verify with latest filings."))
 
     sec_d=[]
     # D1. Beneish — show as probability-like scale, not binary
@@ -1359,7 +1449,7 @@ def compute_vi_scorecard(ticker):
     d_score=d_pass/d_total*100 if d_total else 0
     d_ok = d_score >= 60  # need at least 60% of fraud checks to pass
 
-    result['sections']['D']=('🕵️ Fraud Risk',sec_d)
+    result['sections']['D']=('🏛 Governance',sec_d)
 
     # ── E. Valuation ── (dividend yield threshold is sector-adjusted)
     sec_e=[]
@@ -1486,13 +1576,13 @@ def render_vi_scorecard_st(res):
     has_wide=any('Phantom' in t or 'Widening' in t for t,_ in red_flags)
     if not b_ok and not ph_ok: verdict='🚨 SERIOUS RED FLAGS'; vc='#ef5350'
     elif not ph_ok:            verdict='🚨 PHANTOM PROFIT';    vc='#ef5350'
-    elif not b_ok:             verdict='⚠️ Beneish Risk';       vc='#f0c040'
+    elif not b_ok:             verdict='⚠️ Governance Risk';       vc='#f0c040'
     elif has_wide:             verdict='⚠️ Cash Gap — Monitor'; vc='#f0c040'
     elif overall>=72:          verdict='✅ Strong Buy Candidate';vc='#4ecca3'
     elif overall>=55:          verdict='⚠️ Research Further';   vc='#f0c040'
     else:                      verdict='❌ Avoid';               vc='#ef5350'
 
-    SC={'A':'#00d4ff','B':'#4ecca3','C':'#f0c040','D':'#ef5350','E':'#ab47bc','F':'#ff7043'}
+    SC={'A':'#2f81f7','B':'#3fb950','C':'#d29922','D':'#8b949e','E':'#a371f7','F':'#f0883e'}
     col1,col2=st.columns([3,1])
     with col1:
         st.markdown(f"<h3 style='color:#00d4ff;margin:0'>🔍 {ticker} — Value Investor Scorecard</h3>",unsafe_allow_html=True)
@@ -1504,7 +1594,7 @@ def render_vi_scorecard_st(res):
             f"padding:2px 10px;color:{sc};font-size:11px;font-weight:700'>{prof['label']}</span>"
             f"<span style='color:#3a5070;font-size:10px'>{prof['note']}</span></div>",
             unsafe_allow_html=True)
-        st.caption("5-section analysis · sector-adjusted · Beneish fraud model · Buffett / Graham standards")
+        st.caption("Sector-adjusted · 5-section · Beneish governance model")
     with col2:
         st.markdown(f"<div style='text-align:right'>"
                     f"<span style='font-size:22px;font-weight:bold;color:{vc}'>{overall:.0f}%</span>"
@@ -1513,7 +1603,7 @@ def render_vi_scorecard_st(res):
                     unsafe_allow_html=True)
 
     # ── Radar / Polygon chart ──────────────────────────────────────────────────
-    axes_order = [('A','Quality'),('B','Health'),('C','Integrity'),('D','Fraud'),('E','Value')]
+    axes_order = [('A','Quality'),('B','Health'),('C','Integrity'),('D','Governance'),('E','Value')]
     radar_vals = [sec_scores.get(sid,(0,0,0))[2] for sid,_ in axes_order]
     radar_labels = [lbl for _,lbl in axes_order]
     radar_colors = [SC.get(sid,'#aaa') for sid,_ in axes_order]
@@ -1615,7 +1705,7 @@ def render_vi_scorecard_st(res):
             f"<th style='padding:4px 8px;color:#555;font-size:10px;text-align:right'>Value</th>"
             f"</tr></thead><tbody>{rows}</tbody></table></div>",
             unsafe_allow_html=True)
-    st.caption(f"Sector: {prof['label']} · Thresholds adjusted per sector model · Beneish (1999) · Not financial advice.")
+    st.caption(f"Sector: {prof['label']} · Thresholds adjusted per sector model · Governance score = % of 5 integrity checks passing · Beneish (1999) · Not financial advice.")
 
 
 # ─── 5. News ────────────────────────────────────────────────────────────────────
@@ -1844,7 +1934,7 @@ def compute_quick_score(ticker_yf):
         gd=secs.get('F',(None,[]))[1]; ph_ok=gd[0][3] if gd else True
         if not b_ok and not ph_ok: verdict='🚨 Serious Flags'
         elif not ph_ok:            verdict='🚨 Phantom Profit'
-        elif not b_ok:             verdict='⚠️ Beneish Risk'
+        elif not b_ok:             verdict='⚠️ Governance Risk'
         elif overall>=72:          verdict='✅ Strong Buy'
         elif overall>=55:          verdict='⚠️ Research More'
         else:                      verdict='❌ Avoid'
@@ -1902,7 +1992,7 @@ def _build_screener_page(rows):
     def badge(verdict):
         if "Strong" in verdict:   bg,tc,ic="#0a2016","#4ecca3","✅"
         elif "Serious" in verdict or "Phantom" in verdict: bg,tc,ic="#220808","#ef5350","🚨"
-        elif "Beneish" in verdict: bg,tc,ic="#1e1600","#f0c040","⚠️"
+        elif "Governance" in r.get("Verdict","") or "Beneish" in verdict: bg,tc,ic="#1e1600","#f0c040","⚠️"
         elif "Research" in verdict: bg,tc,ic="#141200","#d4b800","⚠️"
         elif "Avoid" in verdict:   bg,tc,ic="#180808","#e05050","❌"
         else: bg,tc,ic="#111","#888",""
@@ -1910,7 +2000,7 @@ def _build_screener_page(rows):
         return (f"<span style='background:{bg};color:{tc};padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap'>{ic} {label}</span>")
     def mini_bars(r):
         out=""
-        for lbl,key in [("Q","A%"),("H","B%"),("I","C%"),("F","D%"),("V","E%")]:
+        for lbl,key in [("Q","A%"),("H","B%"),("I","C%"),("G","D%"),("V","E%")]:
             pct=r.get(key) or 0; c=_sc(pct)
             out+=(f"<div style='display:inline-block;text-align:center;margin-right:3px'>"
                   f"<div style='font-size:8px;color:#446;margin-bottom:1px'>{lbl}</div>"
@@ -1926,7 +2016,7 @@ def _build_screener_page(rows):
         return f"<span style='color:{c};font-size:11px'>{m:.2f} <b>{l}</b></span>"
     strong=sum(1 for r in rows if "Strong" in r.get("Verdict",""))
     research=sum(1 for r in rows if "Research" in r.get("Verdict",""))
-    risk=sum(1 for r in rows if "Beneish" in r.get("Verdict","") or "Phantom" in r.get("Verdict",""))
+    risk=sum(1 for r in rows if "Governance" in r.get("Verdict","") or "Beneish" in r.get("Verdict","") or "Phantom" in r.get("Verdict",""))
     avoid=sum(1 for r in rows if "Avoid" in r.get("Verdict",""))
     serious=sum(1 for r in rows if "Serious" in r.get("Verdict",""))
     avg_sc=sum(r.get("VI Score",0) or 0 for r in rows)/len(rows) if rows else 0
@@ -2025,7 +2115,7 @@ def show_screener_tab():
     filtered=[r for r in all_r if (r.get("VI Score") or 0)>=min_score]
     asc=(sort_by=="P/E"); filtered.sort(key=lambda r:(r.get(sort_by) or 0),reverse=not asc)
     meta=st.session_state.get("screener_meta","")
-    st.caption(f"**{len(filtered)}** stocks · {meta} · min {min_score}% · sorted by {sort_by}  · Q=Quality  H=Health  I=Integrity  F=Fraud  V=Valuation")
+    st.caption(f"**{len(filtered)}** stocks · {meta} · min {min_score}% · sorted by {sort_by}  · Q=Quality  H=Health  I=Integrity  G=Governance  V=Valuation")
     fa,fb,fc,fd,fe=st.columns(5); active=st.session_state.get("scr_filter","all")
     with fa:
         if st.button("✅ Strong Buy",use_container_width=True,key="f_sb"): st.session_state["scr_filter"]="sb" if active!="sb" else "all"
@@ -2039,7 +2129,7 @@ def show_screener_tab():
         if st.button("📈 ROE ≥ 15%",use_container_width=True,key="f_roe"): st.session_state["scr_filter"]="roe" if active!="roe" else "all"
     flt=st.session_state.get("scr_filter","all")
     if flt=="sb":   filtered=[r for r in filtered if "Strong" in r.get("Verdict","")]
-    elif flt=="rf": filtered=[r for r in filtered if "🚨" in r.get("Verdict","")]
+    elif flt=="rf": filtered=[r for r in filtered if "🚨" in r.get("Verdict","") or "Governance" in r.get("Verdict","")]
     elif flt=="fcf":filtered=[r for r in filtered if r.get("FCF+")]
     elif flt=="div":filtered=[r for r in filtered if (r.get("Div%") or 0)>=2]
     elif flt=="roe":filtered=[r for r in filtered if (r.get("ROE%") or 0)>=15]
