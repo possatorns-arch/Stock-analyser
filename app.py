@@ -85,37 +85,35 @@ h1,h2,h3{color:var(--txt)!important;font-weight:600!important;letter-spacing:-0.
 hr{border:none!important;border-top:1px solid var(--border)!important;margin:12px 0!important;}
 
 /* ═══════════════════════════════════════════════════════
-   TAB BAR — sticky, fills width, GitHub-style active state
+   TAB BAR — large click targets, clean underline active
+   (sticky handled by JS injection below)
    ═══════════════════════════════════════════════════════ */
-/* Wrap the entire tabs block so sticky works */
-div[data-testid="stTabs"]{position:relative;}
 .stTabs [data-baseweb="tab-list"]{
-  position:sticky!important;
-  top:0!important;
-  z-index:200!important;
   background:var(--bg)!important;
   border-bottom:1px solid var(--border)!important;
   gap:0!important;
-  padding:6px 0 0!important;
-  margin:0!important;}
+  padding:4px 0 0!important;}
 .stTabs [data-baseweb="tab"]{
   color:var(--txt2)!important;
-  font-size:13px!important;
+  font-size:14px!important;
   font-weight:500!important;
-  padding:8px 20px!important;
+  padding:11px 24px!important;
   background:transparent!important;
   border:none!important;
   border-bottom:2px solid transparent!important;
   border-radius:0!important;
   margin-bottom:-1px!important;
-  transition:color 0.15s,border-color 0.15s;}
+  cursor:pointer!important;
+  transition:color 0.12s;}
 .stTabs [data-baseweb="tab"] p,
 .stTabs [data-baseweb="tab"] span,
 .stTabs [data-baseweb="tab"] div{
-  color:inherit!important;font-size:13px!important;font-weight:inherit!important;}
+  color:inherit!important;font-size:14px!important;font-weight:inherit!important;}
 .stTabs [data-baseweb="tab"]:hover,
-.stTabs [data-baseweb="tab"]:hover p{color:var(--txt)!important;}
-/* Active tab: underline only (GitHub / Linear style) */
+.stTabs [data-baseweb="tab"]:hover p,
+.stTabs [data-baseweb="tab"]:hover span{
+  color:var(--txt)!important;background:transparent!important;}
+/* Active tab — underline accent */
 .stTabs [aria-selected="true"],
 .stTabs [aria-selected="true"] p,
 .stTabs [aria-selected="true"] span,
@@ -123,49 +121,68 @@ div[data-testid="stTabs"]{position:relative;}
   color:var(--txt)!important;
   font-weight:600!important;
   background:transparent!important;
-  border-bottom:2px solid var(--accent)!important;
-  border-top:none!important;border-left:none!important;border-right:none!important;}
+  border-bottom:2px solid var(--accent)!important;}
+/* Fixed tab bar clone injected by JS — see below */
+#fixed-tabbar{
+  position:fixed!important;
+  top:0!important;left:0!important;right:0!important;
+  z-index:9999!important;
+  background:var(--bg)!important;
+  border-bottom:1px solid var(--border)!important;
+  display:none;  /* shown by JS after clone */
+  padding:4px 20px 0 268px; /* offset for sidebar + main padding */
+}
+#fixed-tabbar button{
+  color:var(--txt2);font-size:14px;font-weight:500;
+  padding:11px 24px;background:transparent;border:none;
+  border-bottom:2px solid transparent;cursor:pointer;
+  transition:color 0.12s;}
+#fixed-tabbar button:hover{color:var(--txt);}
+#fixed-tabbar button.tab-active{
+  color:var(--txt);font-weight:600;
+  border-bottom:2px solid var(--accent);}
 
 /* ═══════════════════════════════════════════════════════
-   SIDEBAR SECTOR BUTTONS — tight grid, solid active fill
+   SIDEBAR SECTOR BUTTONS
    ═══════════════════════════════════════════════════════ */
 section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{
-  gap:4px!important;
-  margin-bottom:2px!important;}
+  gap:3px!important;
+  margin-bottom:3px!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"]{
   margin:0!important;padding:0!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button{
-  padding:5px 4px!important;
+  padding:6px 2px!important;
   border-radius:5px!important;
   width:100%!important;
-  height:30px!important;min-height:30px!important;
-  background:var(--bg3)!important;
+  height:32px!important;min-height:32px!important;
+  background:transparent!important;
   border:1px solid var(--border2)!important;
   color:var(--txt2)!important;
-  font-size:11.5px!important;font-weight:500!important;
-  transition:all 0.12s ease!important;}
+  font-size:12px!important;font-weight:500!important;
+  transition:all 0.1s ease!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover{
-  background:#1f3a5f!important;
+  background:var(--bg3)!important;
   border-color:var(--accent)!important;
   color:var(--txt)!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button p,
 section[data-testid="stSidebar"] div[data-testid="stButton"] button div{
   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
-  font-size:11.5px!important;line-height:1.1!important;font-weight:500!important;
+  font-size:12px!important;line-height:1.2!important;font-weight:500!important;
   margin:0!important;padding:0!important;}
 
 /* ═══════════════════════════════════════════════════════
-   MAIN CONTENT BUTTONS (screener filter etc)
+   MAIN CONTENT BUTTONS
    ═══════════════════════════════════════════════════════ */
 .stButton>button{
-  background:var(--bg3)!important;
+  background:var(--bg2)!important;
   color:var(--txt2)!important;
   border:1px solid var(--border2)!important;
   border-radius:var(--radius)!important;
   font-size:13px!important;font-weight:500!important;
-  transition:all 0.12s ease!important;}
+  padding:8px 16px!important;
+  transition:all 0.1s ease!important;}
 .stButton>button:hover{
-  background:#1f3a5f!important;
+  background:var(--bg3)!important;
   border-color:var(--accent)!important;
   color:var(--txt)!important;}
 .stButton>button[kind="primary"],
@@ -174,7 +191,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"] button div{
   border-color:var(--accent)!important;
   color:#fff!important;font-weight:600!important;}
 .stButton>button[kind="primary"]:hover{
-  background:#388bfd!important;}
+  filter:brightness(1.1)!important;}
 
 /* ═══════════════════════════════════════════════════════
    INPUTS
@@ -207,7 +224,50 @@ div[data-testid="metric-container"]{
   background:var(--bg2)!important;
   border:1px solid var(--border)!important;
   border-radius:var(--radius)!important;}
-</style>""", unsafe_allow_html=True)
+</style>
+<div id="fixed-tabbar"></div>
+<script>
+(function fixTabs(){
+  // Wait for Streamlit to render tab bar
+  const MAX = 60; let n = 0;
+  function tryClone(){
+    const tabList = document.querySelector('[data-baseweb="tab-list"]');
+    if (!tabList){ if(n++<MAX) setTimeout(tryClone,200); return; }
+
+    const bar = document.getElementById('fixed-tabbar');
+    bar.innerHTML = '';
+    // Clone each tab as a plain button
+    tabList.querySelectorAll('[data-baseweb="tab"]').forEach((tab,i)=>{
+      const btn = document.createElement('button');
+      btn.textContent = tab.textContent.trim();
+      if(tab.getAttribute('aria-selected')==='true') btn.classList.add('tab-active');
+      btn.onclick = ()=>{ tab.click(); updateActive(); };
+      bar.appendChild(btn);
+    });
+    bar.style.display='flex';
+    bar.style.alignItems='center';
+
+    // Add top padding to main content so it's not hidden behind fixed bar
+    const mainContent = document.querySelector('.block-container') ||
+                        document.querySelector('[data-testid="stAppViewContainer"]');
+    if(mainContent) mainContent.style.paddingTop='50px';
+
+    // Observe tab selection changes
+    function updateActive(){
+      setTimeout(()=>{
+        const tabs = tabList.querySelectorAll('[data-baseweb="tab"]');
+        bar.querySelectorAll('button').forEach((btn,i)=>{
+          btn.classList.toggle('tab-active', tabs[i]?.getAttribute('aria-selected')==='true');
+        });
+      },150);
+    }
+    const obs = new MutationObserver(updateActive);
+    obs.observe(tabList, {attributes:true, subtree:true, attributeFilter:['aria-selected']});
+  }
+  setTimeout(tryClone, 600);
+})();
+</script>
+""", unsafe_allow_html=True)
 
 # ─── Universe ──────────────────────────────────────────────────────────────────
 SET100 = [
@@ -939,20 +999,20 @@ _ROW_TIERS = {
 # Row groups for visual separation within tables
 _ROW_GROUPS = {
     'income': {
-        '📈 Revenue & Profitability': ['Total Revenue','Gross Profit','Operating Income','Net Income','EBITDA','Diluted EPS'],
-        '📊 Margins & Ratios':        ['Gross Profit Ratio','Operating Margin','Net Income Ratio'],
-        '💸 Costs & Expenses':        ['Cost Of Revenue','Total Expenses','Selling General And Administration','Research And Development','Interest Expense','Tax Provision'],
+        'Revenue & Profitability': ['Total Revenue','Gross Profit','Operating Income','Net Income','EBITDA','Diluted EPS'],
+        'Margins & Ratios':        ['Gross Profit Ratio','Operating Margin','Net Income Ratio'],
+        'Costs & Expenses':        ['Cost Of Revenue','Total Expenses','Selling General And Administration','Research And Development','Interest Expense','Tax Provision'],
     },
     'balance': {
-        '🏦 Asset Base':              ['Total Assets','Cash And Cash Equivalents','Net Receivables','Inventory','Current Assets','Net PPE'],
-        '⚖️ Liabilities & Equity':   ['Current Liabilities','Total Debt','Long Term Debt','Total Liabilities Net Minority Interest','Stockholders Equity','Total Equity Gross Minority Interest'],
-        '📐 Working Capital':         ['Working Capital','Net Debt','Total Capitalization'],
+        'Asset Base':              ['Total Assets','Cash And Cash Equivalents','Net Receivables','Inventory','Current Assets','Net PPE'],
+        'Liabilities & Equity':   ['Current Liabilities','Total Debt','Long Term Debt','Total Liabilities Net Minority Interest','Stockholders Equity','Total Equity Gross Minority Interest'],
+        'Working Capital':         ['Working Capital','Net Debt','Total Capitalization'],
     },
     'cashflow': {
-        '💰 Operating Cash':          ['Operating Cash Flow','Cash Flow From Continuing Operating Activities'],
-        '🏗 Investing':               ['Capital Expenditure','Investing Cash Flow','Free Cash Flow'],
-        '🏦 Financing':               ['Financing Cash Flow','Dividends Paid','Repurchase Of Capital Stock','Issuance Of Debt','Repayment Of Debt'],
-        '📊 Net Change':              ['Changes In Cash'],
+        'Operating Cash':          ['Operating Cash Flow','Cash Flow From Continuing Operating Activities'],
+        'Investing':               ['Capital Expenditure','Investing Cash Flow','Free Cash Flow'],
+        'Financing':               ['Financing Cash Flow','Dividends Paid','Repurchase Of Capital Stock','Issuance Of Debt','Repayment Of Debt'],
+        'Net Change':              ['Changes In Cash'],
     },
 }
 
@@ -978,7 +1038,7 @@ def _df_to_html(df,title,max_years=10):
             grp_rows=[(rn,rd) for rn,rd in sub.iterrows() if str(rn) in grp_keys]
             if grp_rows: ordered_rows.append(('group',grp_label,grp_rows)); [used.add(str(rn)) for rn,_ in grp_rows]
         remainder=[(rn,rd) for rn,rd in sub.iterrows() if str(rn) not in used]
-        if remainder: ordered_rows.append(('group','📋 Other',remainder))
+        if remainder: ordered_rows.append(('group','Other',remainder))
     else:
         ordered_rows.append(('group','',list(sub.iterrows())))
 
@@ -1230,7 +1290,7 @@ def compute_vi_scorecard(ticker):
     sec_a.append(('Earnings Consistency','All years +',
                   '✓ No loss years' if earn_ok else '✗ Has loss years',
                   earn_ok,'Loss years signal structural or cyclical weakness — avoid for VI'))
-    result['sections']['A']=('🏆 Business Quality',sec_a)
+    result['sections']['A']=('Business Quality',sec_a)
 
     # ── B. Financial Health ── (sector-aware D/E, Current Ratio, FCF mode)
     sec_b=[]
@@ -1296,7 +1356,7 @@ def compute_vi_scorecard(ticker):
         sec_b.append(('FCF (all years)','Always +',
                       f"✓ Latest: {fcf_v/1e9:.2f}B" if fcf_ok and fcf_v else '✗ Has negative FCF years',
                       fcf_ok,"Owner earnings — the only truly real profit (Buffett)"))
-    result['sections']['B']=('💪 Financial Health',sec_b)
+    result['sections']['B']=('Financial Health',sec_b)
 
     # ── C. Earnings Integrity ── (standard, but phantom check mode is sector-adjusted)
     sec_c=[]
@@ -1344,7 +1404,7 @@ def compute_vi_scorecard(ticker):
                 f"GM std dev = {std:.1f}pp. Wild swings suggest accounting adjustments."))
         sec_c.append(('Gross Margin Stability','Std<8pp',f"{std:.1f}pp",ok,'Stable margins = durable moat'))
     except: sec_c.append(('Gross Margin Stability','Std<8pp','N/A',False,''))
-    result['sections']['C']=('🔬 Earnings Integrity',sec_c)
+    result['sections']['C']=('Earnings Integrity',sec_c)
 
     # ── D. Fraud / Integrity — multi-signal scoring ────────────────────────────
     # Beneish M-Score
@@ -1449,7 +1509,7 @@ def compute_vi_scorecard(ticker):
     d_score=d_pass/d_total*100 if d_total else 0
     d_ok = d_score >= 60  # need at least 60% of fraud checks to pass
 
-    result['sections']['D']=('🏛 Governance',sec_d)
+    result['sections']['D']=('Governance',sec_d)
 
     # ── E. Valuation ── (dividend yield threshold is sector-adjusted)
     sec_e=[]
@@ -1491,7 +1551,7 @@ def compute_vi_scorecard(ticker):
             sec_e.append(('PEG Ratio (P/E÷growth)','<1.5',f"{peg:.2f}",ok,'Lynch: PEG<1 = paying less than growth rate'))
         else: raise ValueError
     except: sec_e.append(('PEG Ratio','<1.5','N/A',False,''))
-    result['sections']['E']=('💰 Valuation',sec_e)
+    result['sections']['E']=('Valuation',sec_e)
 
     # ── F. Cash Reality Check ── (phantom mode is sector-adjusted)
     sec_f=[]
@@ -1585,7 +1645,7 @@ def render_vi_scorecard_st(res):
     SC={'A':'#2f81f7','B':'#3fb950','C':'#d29922','D':'#8b949e','E':'#a371f7','F':'#f0883e'}
     col1,col2=st.columns([3,1])
     with col1:
-        st.markdown(f"<h3 style='color:#00d4ff;margin:0'>🔍 {ticker} — Value Investor Scorecard</h3>",unsafe_allow_html=True)
+        st.markdown(f"<h3 style='color:var(--txt);margin:0;font-size:16px;font-weight:600'>{ticker} · VI Scorecard</h3>",unsafe_allow_html=True)
         # Sector badge
         sc=prof.get('color','#80cbc4')
         st.markdown(
@@ -2025,9 +2085,9 @@ def _build_screener_page(rows):
                 f"<div style='font-size:22px;font-weight:800;color:{c}'>{v}</div>"
                 f"<div style='font-size:10px;color:#446;margin-top:2px'>{lbl}</div></div>")
     summary=(f"<div style='display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap'>"
-             +stat(f"{avg_sc:.0f}%","Avg Score","#00d4ff")+stat(strong,"✅ Strong Buy","#4ecca3")
+             +stat(f"{avg_sc:.0f}%","Avg Score","#00d4ff")+stat(strong,"Strong Buy","#4ecca3")
              +stat(research,"⚠️ Research More","#d4b800")+stat(risk,"⚠️ Fraud Risk","#f08020")
-             +stat(avoid,"❌ Avoid","#e05050")+stat(serious,"🚨 Serious","#ff2244")+"</div>")
+             +stat(avoid,"Avoid","#e05050")+stat(serious,"Serious","#ff2244")+"</div>")
     trs=""
     for i,r in enumerate(rows):
         score=r.get("VI Score",0) or 0; sc=_sc(score)
@@ -2077,7 +2137,7 @@ def _build_screener_page(rows):
 </div></body></html>""", height
 
 def show_screener_tab():
-    st.markdown("<h3 style='color:#00d4ff;margin-bottom:2px'>🔍 Screener</h3>"
+    st.markdown("<h3 style='margin-bottom:2px;font-size:18px;font-weight:600'>Screener</h3>"
                 "<p style='color:#3a5070;font-size:13px;margin:0 0 16px'>Batch VI-scorecard across SET100 / MAI. "
                 "Thresholds auto-adjust per sector. Green ≥72% · yellow ≥55% · red below.</p>",unsafe_allow_html=True)
     c1,c2,c3,c4=st.columns([2,2,1,1])
@@ -2118,15 +2178,15 @@ def show_screener_tab():
     st.caption(f"**{len(filtered)}** stocks · {meta} · min {min_score}% · sorted by {sort_by}  · Q=Quality  H=Health  I=Integrity  G=Governance  V=Valuation")
     fa,fb,fc,fd,fe=st.columns(5); active=st.session_state.get("scr_filter","all")
     with fa:
-        if st.button("✅ Strong Buy",use_container_width=True,key="f_sb"): st.session_state["scr_filter"]="sb" if active!="sb" else "all"
+        if st.button("Strong Buy",use_container_width=True,key="f_sb"): st.session_state["scr_filter"]="sb" if active!="sb" else "all"
     with fb:
-        if st.button("🚨 Red Flags",use_container_width=True,key="f_rf"): st.session_state["scr_filter"]="rf" if active!="rf" else "all"
+        if st.button("Red Flags",use_container_width=True,key="f_rf"): st.session_state["scr_filter"]="rf" if active!="rf" else "all"
     with fc:
-        if st.button("✔ FCF+ only",use_container_width=True,key="f_fcf"): st.session_state["scr_filter"]="fcf" if active!="fcf" else "all"
+        if st.button("FCF+ only",use_container_width=True,key="f_fcf"): st.session_state["scr_filter"]="fcf" if active!="fcf" else "all"
     with fd:
-        if st.button("💰 Div ≥ 2%",use_container_width=True,key="f_div"): st.session_state["scr_filter"]="div" if active!="div" else "all"
+        if st.button("Div ≥ 2%",use_container_width=True,key="f_div"): st.session_state["scr_filter"]="div" if active!="div" else "all"
     with fe:
-        if st.button("📈 ROE ≥ 15%",use_container_width=True,key="f_roe"): st.session_state["scr_filter"]="roe" if active!="roe" else "all"
+        if st.button("ROE ≥ 15%",use_container_width=True,key="f_roe"): st.session_state["scr_filter"]="roe" if active!="roe" else "all"
     flt=st.session_state.get("scr_filter","all")
     if flt=="sb":   filtered=[r for r in filtered if "Strong" in r.get("Verdict","")]
     elif flt=="rf": filtered=[r for r in filtered if "🚨" in r.get("Verdict","") or "Governance" in r.get("Verdict","")]
@@ -2148,7 +2208,7 @@ def show_screener_tab():
             f"<span style='color:#3a5070;font-size:13px'>{name}</span>"
             f"<span style='background:rgba(0,0,0,0.3);border:1px solid {sc};border-radius:10px;padding:2px 8px;color:{sc};font-size:10px;font-weight:700'>{prof['label']}</span></div>",
             unsafe_allow_html=True)
-        dt=st.tabs(["📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Scorecard","📰 News"])
+        dt=st.tabs(["Price","Financials","Fundamentals","VI Scorecard","News"])
         with dt[0]:
             with st.spinner("Loading…"):
                     html_c,h_c=make_tv_chart(to_yf(drill)); _components.html(html_c,height=h_c,scrolling=False)
@@ -2171,11 +2231,11 @@ def main():
 
     with st.sidebar:
         st.markdown("<div style='padding:4px 0 12px'>"
-                    "<div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
-                    "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition · Sector-Adjusted</div></div>",unsafe_allow_html=True)
+                    "<div style='color:var(--txt);font-size:17px;font-weight:700;letter-spacing:-0.4px'>SET Analyser</div>"
+                    "<div style='color:var(--txt3);font-size:11px;margin-top:2px;font-weight:400'>Value Investor Edition</div></div>",unsafe_allow_html=True)
 
         # ── SET100 section ──────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'><span style='color:#00c8f8'>●</span> SET100</div>",unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-label'>SET 100</div>",unsafe_allow_html=True)
 
         # Sector icon grid — 3 per row, compact
         sector_keys=['All']+sorted(SECTOR_MAP.keys())
@@ -2208,7 +2268,7 @@ def main():
         st.markdown("<hr>",unsafe_allow_html=True)
 
         # ── MAI section ─────────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'><span style='color:#4ecca3'>●</span> MAI</div>",unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-label'>MAI</div>",unsafe_allow_html=True)
 
         # MAI sector filter
         mai_sec_keys=['All']+sorted(MAI_SECTOR_MAP.keys())
@@ -2240,12 +2300,12 @@ def main():
         st.markdown("<hr>",unsafe_allow_html=True)
 
         # ── DR / ETF section ─────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'><span style='color:#f0c040'>●</span> DR / ETF</div>",unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-label'>DR / ETF</div>",unsafe_allow_html=True)
         dr_sel=st.multiselect("DR tickers",DR_TICKERS,placeholder="Pick DR / ETF…",key="dr_ms",label_visibility="collapsed")
         st.markdown("<hr>",unsafe_allow_html=True)
 
         # ── Global / custom ticker input ─────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'><span style='color:#f5c842'>●</span> Global / Custom</div>",unsafe_allow_html=True)
+        st.markdown("<div class='sidebar-label'>Global / Custom</div>",unsafe_allow_html=True)
         st.markdown("<div style='color:#3a5070;font-size:10px;margin-bottom:4px'>Any Yahoo Finance ticker — e.g. AAPL, TSLA, 9984.T, 005930.KS</div>",unsafe_allow_html=True)
         custom_raw=st.text_input("Custom tickers",placeholder="AAPL, TSLA, 9984.T …",key="custom_tickers",label_visibility="collapsed")
         custom_sel=[t.strip().upper() for t in custom_raw.replace(","," ").split() if t.strip()]
@@ -2296,7 +2356,7 @@ def main():
             if st.button("🔄 Refresh Data",use_container_width=True,help="Force-reload from Yahoo Finance"):
                 st.cache_data.clear(); st.rerun()
 
-    TABS=["🔍 Screener","📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Score","📰 News"]
+    TABS=["Screener","Price","Financials","Fundamentals","VI Score","News"]
     tabs=st.tabs(TABS)
     def _need_selection():
         st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:36px;text-align:center;margin-top:20px'>"
