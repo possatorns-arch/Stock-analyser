@@ -120,12 +120,15 @@ MAI_TICKERS = [
     "SMPC","SPA","SSP","THRE","TPCH","VIH",
 ]
 DR_TICKERS = [
-    "E1VFVN3001","FUEVFVND01","EQHVN30U1","FUEVN100",
-    "STAR5001","CNTECH01","BABA80","TENCENT80","XIAOMI80","BYDCOM80",
-    "NDX01","AAPL80X","TSLA80X",
+    # Vietnam ETFs (SET-listed DRs)
+    "E1VFVN3001","FUEVFVND01","FUEVN100",
+    # China/HK DRs
+    "BABA80","TENCENT80","XIAOMI80","BYDCOM80",
+    # US-linked DRs / ETFs
+    "NDX01","AAPL80X","TSLA80X","STAR5001",
 ]
 SECTOR_MAP = {
-    "Banking":      ["BBL","KBANK","KTB","SCB","BAY","KKP","TISCO","TTB","TCAP"],
+    "Banking":      ["BBL","KBANK","KTB","SCB","KKP","TISCO","TTB","TCAP"],
     "Finance":      ["KTC","MTC","JMT","BLA","AEONTS","BAM","SAWAD","TIDLOR","ASK","THRE"],
     "Energy":       ["PTT","PTTEP","PTTGC","TOP","BANPU","BCP","BCPG","BGRIM","EA",
                      "EGCO","GULF","GPSC","GUNKUL","CKP","RATCH","IRPC","SPRC","OR","BBGI","EPG","SSP","TPCH"],
@@ -188,11 +191,11 @@ SECTOR_PROFILES = {
         'rev_cagr_min': 5,
         'gross_margin_min': None,   # Replace with net interest income / revenue
         'net_margin_min': 15,       # Banks earn fat margins on revenue
-        'roe_min': 12,              # Capital-intensive; 10%+ is good for Thai banks
+        'roe_min': 10,              # Capital-intensive; 10%+ is good for Thai banks
         'de_max': None,             # SKIP — structural, not a risk signal
         'cr_min': None,             # SKIP — deposit-funded; ALM manages liquidity
         'ic_min': 2,                # Banks earn interest; coverage concept differs
-        'div_yield_min': 3.0,       # Thai banks historically pay 3–6%
+        'div_yield_min': 2.0,       # Thai banks historically pay 3–6%
         'fcf_mode': 'ocf_positive', # OCF = core cash; capex minimal for banks
         'phantom_mode': 'ni_trend', # Loan book expansion causes OCF swing; NI trend better signal
     },
@@ -211,7 +214,7 @@ SECTOR_PROFILES = {
         'de_max': 6.0,
         'cr_min': None,             # Funded by bonds/banks, not payables
         'ic_min': 2,
-        'div_yield_min': 3.0,
+        'div_yield_min': 1.0,
         'fcf_mode': 'ocf_positive',
         'phantom_mode': 'ni_trend',
     },
@@ -226,11 +229,11 @@ SECTOR_PROFILES = {
         'rev_cagr_min': 5,
         'gross_margin_min': 25,     # Thai residential developers: 25–40%
         'net_margin_min': 8,
-        'roe_min': 15,
+        'roe_min': 10,
         'de_max': 1.5,
         'cr_min': 1.2,              # Funded partly by homebuyer deposits
         'ic_min': 3,
-        'div_yield_min': 5.0,
+        'div_yield_min': 2.0,
         'fcf_mode': 'avg_3y',       # 3Y average; single years can be heavily negative
         'phantom_mode': 'standard',
     },
@@ -246,11 +249,11 @@ SECTOR_PROFILES = {
         'rev_cagr_min': 5,
         'gross_margin_min': 20,     # Commodity/refining margins can be thin
         'net_margin_min': 5,
-        'roe_min': 10,
+        'roe_min': 8,
         'de_max': 2.5,
         'cr_min': 1.0,
         'ic_min': 3,
-        'div_yield_min': 4.0,       # Energy/utility co.s should distribute cash
+        'div_yield_min': 3.0,       # Energy/utility co.s should distribute cash
         'fcf_mode': 'avg_3y',
         'phantom_mode': 'standard',
     },
@@ -265,7 +268,7 @@ SECTOR_PROFILES = {
         'de_max': 0.5,
         'cr_min': 1.5,
         'ic_min': 5,
-        'div_yield_min': 2.5,
+        'div_yield_min': 1.0,
         'fcf_mode': 'all_positive',
         'phantom_mode': 'standard',
     },
@@ -274,7 +277,7 @@ SECTOR_PROFILES = {
 # Map each ticker to its sector group
 _TICKER_TO_GROUP = {}
 for _g, _tickers in [
-    ('bank',     ['BBL','KBANK','KTB','SCB','BAY','KKP','TISCO','TTB','TCAP']),
+    ('bank',     ['BBL','KBANK','KTB','SCB','KKP','TISCO','TTB','TCAP']),
     ('finance',  ['KTC','MTC','TIDLOR','SAWAD','AEONTS','BAM','JMT','ASK','THRE','BLA']),
     ('property', ['LH','CPN','SIRI','SPALI','WHA','AWC','AP','QH','AMATA','ROJNA',
                   'A5','CHEWA','MORE','SCGD']),
@@ -481,7 +484,7 @@ def make_tv_chart(ticker):
     fmin = (ep - float(close_d.min())) / float(close_d.min()) * 100
     dy   = trailing_div_yield(d['divs'], d['price'])
     dy_txt = f" · Div {dy:.2f}%" if dy else ""
-    base  = ticker.replace('.BK', '')
+    base  = ticker.replace('.BK', '') if ticker.endswith('.BK') else ticker
     has_pbv = len(pbv_series) > 0
     pbv_h   = 110 if has_pbv else 0
     title   = f"{base} · {ep:.2f} THB · ▼ from MAX {fmax:.1f}% · ▲ from MIN +{fmin:.1f}%{dy_txt}"
@@ -571,23 +574,31 @@ document.getElementById('p-rsi').style.height   = RH+'px';
 document.getElementById('p-vol').style.height   = VH+'px';
 {'document.getElementById("p-pbv").style.height = BH+"px";' if has_pbv else '// no pbv'}
 
-const mkOpts = (h) => ({{
+const PS_W = 68; // fixed price-scale width → perfect x-axis alignment
+const mkOpts = (h, showTime) => ({{
   width:W, height:h,
   layout:{{ background:{{color:C.bg}}, textColor:C.txt, fontSize:11 }},
   grid:{{ vertLines:{{color:C.grid}}, horzLines:{{color:C.grid}} }},
   crosshair:{{ mode:LightweightCharts.CrosshairMode.Normal,
-               vertLine:{{color:C.cross,labelBackgroundColor:'#1e3358'}},
-               horzLine:{{color:C.cross,labelBackgroundColor:'#1e3358'}} }},
-  timeScale:{{ borderColor:C.grid, timeVisible:true, secondsVisible:false }},
-  rightPriceScale:{{ borderColor:C.grid }},
+               vertLine:{{color:C.cross,width:1,labelBackgroundColor:'#1e3358'}},
+               horzLine:{{color:C.cross,width:1,labelBackgroundColor:'#1e3358'}} }},
+  timeScale:{{ borderColor:C.grid, timeVisible:!!showTime, secondsVisible:false,
+               rightOffset:12, fixRightEdge:false }},
+  rightPriceScale:{{ borderColor:C.grid, minimumWidth:PS_W }},
+  leftPriceScale:{{ visible:false }},
   handleScroll:true, handleScale:true,
 }});
 
-const cP = LightweightCharts.createChart(document.getElementById('p-price'), mkOpts(PH));
-const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkOpts(RH));
-const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts(VH));
-{'const cB = LightweightCharts.createChart(document.getElementById("p-pbv"), mkOpts(BH));' if has_pbv else 'const cB = null;'}
+const cP = LightweightCharts.createChart(document.getElementById('p-price'), mkOpts(PH, false));
+const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkOpts(RH, false));
+const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts(VH, false));
+{'const cB = LightweightCharts.createChart(document.getElementById("p-pbv"), mkOpts(BH, true));' if has_pbv else 'const cB = null;'}
 
+// ── Hide time axis on intermediate panes; show only on bottom ────────────────
+// Suppress tick labels on price + RSI panes so only bottom pane shows dates
+// Hide time scale entirely on upper panels — perfect alignment guaranteed
+cP.applyOptions({{timeScale:{{visible:false}}}});
+cR.applyOptions({{timeScale:{{visible:false}}}});
 // ── Series ────────────────────────────────────────────────────────────────────
 const sCand = cP.addCandlestickSeries({{
   upColor:C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn
@@ -697,9 +708,12 @@ function applyRange(days) {{
   if (days >= 99999) {{ allCharts.forEach(c=>c.timeScale().fitContent()); return; }}
   const last = src[src.length-1].time;
   const from = last - days*86400;
-  // Use cP as source; sync handler will propagate to others
-  _syncLock = false;
-  cP.timeScale().setVisibleRange({{from, to: last + 86400}});
+  const r = {{from, to: last + 86400}};
+  // Set all charts directly — more reliable than waiting for sync event
+  _syncLock = true;
+  try {{
+    allCharts.forEach(c => c.timeScale().setVisibleRange(r));
+  }} finally {{ _syncLock = false; }}
 }}
 
 // ── Interval buttons ──────────────────────────────────────────────────────────
@@ -737,8 +751,23 @@ window.addEventListener('resize', () => {{
   allCharts.forEach(c => c.applyOptions({{width:nw}}));
 }});
 
-// ── Init: show 1Y ────────────────────────────────────────────────────────────
-setTimeout(() => setRangeSilent(365), 200);
+// ── Init: fit all data then zoom to 1Y from latest ───────────────────────────
+(function initRange() {{
+  const src = DATA['D'].candle;
+  if (!src || !src.length) {{ setTimeout(initRange, 100); return; }}
+  // Fit full history first so panes render with correct dimensions
+  allCharts.forEach(c => {{ try{{ c.timeScale().fitContent(); }}catch(e){{}} }});
+  // Then zoom to 1Y from latest data point after a render tick
+  setTimeout(() => {{
+    const last = src[src.length-1].time;
+    const from = last - 365*86400;
+    const to   = last + 86400*4;
+    _syncLock = true;
+    try {{
+      allCharts.forEach(c => c.timeScale().setVisibleRange({{from, to}}));
+    }} finally {{ _syncLock = false; }}
+  }}, 80);
+}})();
 </script></body></html>"""
 
     return html, total_h
@@ -796,12 +825,12 @@ _ROW_TIERS = {
     'Gross Profit':          'star',
     'Operating Income':      'star',
     'Net Income':            'star',
-    'EBITDA':                'star',
+    'EBITDA':                'key',
     'Gross Profit Ratio':    'key',
     'Operating Margin':      'key',
     'Net Income Ratio':      'key',
     'Cost Of Revenue':       'key',
-    'Total Expenses':        'star',
+    'Total Expenses':        'key',
     'Interest Expense':      'key',
     'Tax Provision':         '',
     'Diluted EPS':           'key',
@@ -1058,7 +1087,7 @@ def detect_cycle(s,label):
     return None
 
 def compute_vi_scorecard(ticker):
-    base=ticker.replace('.BK','')
+    base=ticker.replace('.BK','') if ticker.endswith('.BK') else ticker
     sg, prof=get_sector_profile(base)
     thr=prof
 
@@ -1110,16 +1139,14 @@ def compute_vi_scorecard(ticker):
     sec_a.append((f'Net Margin (5Y median)',f'>{nm_min}%',
                   f"{nm_med:.1f}%" if nm_med else 'N/A',
                   nm_med is not None and nm_med>=nm_min,
-                  ''
-                  ))
+                  'Net margin shows how much of every revenue baht becomes profit after all costs'))
 
     roe_min=thr['roe_min']
     roe_med=_med(roe_s)
     sec_a.append((f'ROE (5Y median)',f'>{roe_min}%',
                   f"{roe_med:.1f}%" if roe_med else 'N/A',
                   roe_med is not None and roe_med>=roe_min,
-                  ''
-                  ))
+                  'ROE measures how efficiently the company generates profit from shareholders capital'))
 
     earn_ok=_all_pos(net_income)
     sec_a.append(('Earnings Consistency','All years +',
@@ -1155,7 +1182,7 @@ def compute_vi_scorecard(ticker):
         sec_b.append((f'Current Ratio',f'>{cr_min}×',
                       f"{crat:.2f}×" if crat is not None else 'N/A',
                       crat is not None and crat>=cr_min,
-                      'Current ratio >1: cover current debts — company can pay short-term bills'))
+                      'Current ratio >1 means current assets cover current debts — company can pay short-term bills'))
 
     ic_min=thr['ic_min']
     try:
@@ -1513,14 +1540,14 @@ TICKER_THAI={
     "BANPU":["\u0e1a\u0e49\u0e32\u0e19\u0e1b\u0e39"],"IVL":["Indorama"],
 }
 RISK_KW=[
-    (4,"Fraud/Corruption",["fraud","embezzl","corrupt","bribery","ponzi","money launder","misappropriate","fictitious","kickback","fake invoice","\u0e09\u0e49\u0e2d\u0e42\u0e01\u0e07","\u0e17\u0e38\u0e08\u0e23\u0e34\u0e15","\u0e42\u0e01\u0e07\u0e40\u0e07\u0e34\u0e19","\u0e22\u0e31\u0e01\u0e22\u0e2d\u0e01","\u0e1b\u0e25\u0e2d\u0e21"]),
+    (4,"Fraud/Corruption",["fraud","embezzl","corrupt","bribery","ponzi","money launder","misappropriat","fictitious","kickback","fake invoice","\u0e09\u0e49\u0e2d\u0e42\u0e01\u0e07","\u0e17\u0e38\u0e08\u0e23\u0e34\u0e15","\u0e42\u0e01\u0e07\u0e40\u0e07\u0e34\u0e19","\u0e22\u0e31\u0e01\u0e22\u0e2d\u0e01","\u0e1b\u0e25\u0e2d\u0e21"]),
     (4,"Criminal Charges",["arrested","indicted","criminal charge","prosecut","warrant","jail","prison","charged with","\u0e08\u0e31\u0e1a\u0e01\u0e38\u0e21","\u0e04\u0e14\u0e35\u0e2d\u0e32\u0e0d\u0e32","\u0e2d\u0e2d\u0e01\u0e2b\u0e21\u0e32\u0e22\u0e08\u0e31\u0e1a","\u0e16\u0e39\u0e01\u0e08\u0e31\u0e1a"]),
     (4,"Regulatory Action",["sec charges","suspended trading","trading halted","delisted","revoked license","\u0e2b\u0e22\u0e38\u0e14\u0e0b\u0e37\u0e49\u0e2d\u0e02\u0e32\u0e22","\u0e16\u0e2d\u0e14\u0e17\u0e30\u0e40\u0e1a\u0e35\u0e22\u0e19"]),
     (3,"Investigation",["investigat","probe","raided","subpoena","sec inquiry","dsi","special case","\u0e2a\u0e2d\u0e1a\u0e2a\u0e27\u0e19","\u0e15\u0e23\u0e27\u0e08\u0e2a\u0e2d\u0e1a","\u0e1a\u0e38\u0e01\u0e04\u0e49\u0e19","\u0e14\u0e2a\u0e2e."]),
     (3,"Legal Action",["lawsuit","sued","litigation","court order","injunction","class action","filed complaint","\u0e1f\u0e49\u0e2d\u0e07\u0e23\u0e49\u0e2d\u0e07","\u0e23\u0e49\u0e2d\u0e07\u0e17\u0e38\u0e01\u0e02\u0e4c","\u0e28\u0e32\u0e25"]),
     (3,"Mgmt Misconduct",["ceo resign","fired","dismissed","misconduct","insider trading","executive arrested","management arrested","\u0e1c\u0e39\u0e49\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23\u0e25\u0e32\u0e2d\u0e2d\u0e01","\u0e1c\u0e39\u0e49\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23\u0e16\u0e39\u0e01\u0e08\u0e31\u0e1a"]),
     (2,"Accounting/Audit",["restat","qualified opinion","going concern","material weakness","auditor resign","delayed filing","falsif","\u0e07\u0e1a\u0e01\u0e32\u0e23\u0e40\u0e07\u0e34\u0e19\u0e41\u0e01\u0e49\u0e44\u0e02"]),
-    (2,"Regulatory Warning",["warning","penalty","violation","non-complian","fine imposed","sanction","\u0e1b\u0e23\u0e31\u0e1a","\u0e42\u0e17\u0e29","\u0e40\u0e15\u0e37\u0e2d\u0e19"]),
+    (2,"Regulatory Warning",["warning","penalt","violation","non-complian","fine imposed","sanction","\u0e1b\u0e23\u0e31\u0e1a","\u0e42\u0e17\u0e29","\u0e40\u0e15\u0e37\u0e2d\u0e19"]),
     (2,"Related Party",["related party","self-dealing","tunneling","undisclosed transaction","\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e01\u0e31\u0e1a\u0e1a\u0e38\u0e04\u0e04\u0e25\u0e17\u0e35\u0e48\u0e40\u0e01\u0e35\u0e48\u0e22\u0e27\u0e02\u0e49\u0e2d\u0e07"]),
     (1,"Controversy",["scandal","controversy","boycott","\u0e41\u0e09","\u0e01\u0e23\u0e30\u0e41\u0e2a"]),
 ]
@@ -1706,7 +1733,7 @@ def compute_quick_score(ticker_yf):
         m,ml,_=compute_beneish(d['income'],d['balance'],d['cashflow'])
         pe=info.get('trailingPE') or info.get('forwardPE')
         dy=trailing_div_yield(d['divs'],d['price'])
-        base=ticker_yf.replace('.BK',''); name=TICKER_NAMES.get(base,"")
+        base=ticker_yf.replace('.BK','') if ticker_yf.endswith('.BK') else ticker_yf; name=TICKER_NAMES.get(base,base)
         sg,prof=get_sector_profile(base)
         return {"Ticker":base,"Company":name,"VI Score":round(overall,1),"Verdict":verdict,
                 "Sector":prof['label'],
@@ -1911,8 +1938,8 @@ def main():
 
     with st.sidebar:
         st.markdown("<div style='padding:4px 0 12px'>"
-                    "<div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 STOCK Analyser</div>"
-                    "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition</div></div>",unsafe_allow_html=True)
+                    "<div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
+                    "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition · Sector-Adjusted</div></div>",unsafe_allow_html=True)
 
         # ── Date range ──────────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'>📅 Chart Start Date</div>",unsafe_allow_html=True)
@@ -1990,15 +2017,42 @@ def main():
         # ── DR / ETF section ─────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'><span style='color:#f0c040'>●</span> DR / ETF</div>",unsafe_allow_html=True)
         dr_sel=st.multiselect("DR tickers",DR_TICKERS,placeholder="Pick DR / ETF…",key="dr_ms",label_visibility="collapsed")
+        st.markdown("<hr>",unsafe_allow_html=True)
 
-        selected_base=set_sel+mai_sel+dr_sel; selected=[to_yf(t) for t in selected_base]
+        # ── Global / custom ticker input ─────────────────────────────────────────
+        st.markdown("<div class='sidebar-label'><span style='color:#f5c842'>●</span> Global / Custom</div>",unsafe_allow_html=True)
+        st.markdown("<div style='color:#3a5070;font-size:10px;margin-bottom:4px'>Any Yahoo Finance ticker — e.g. AAPL, TSLA, 9984.T, 005930.KS</div>",unsafe_allow_html=True)
+        custom_raw=st.text_input("Custom tickers",placeholder="AAPL, TSLA, 9984.T …",key="custom_tickers",label_visibility="collapsed")
+        custom_sel=[t.strip().upper() for t in custom_raw.replace(","," ").split() if t.strip()]
+
+        # ── Popular global shortcuts ──────────────────────────────────────────────
+        GLOBAL_SHORTCUTS = {
+            "🇺🇸 US":   ["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","BRK-B","JPM","JNJ"],
+            "🇯🇵 JP":   ["7203.T","9984.T","6758.T","8306.T","6861.T"],
+            "🇰🇷 KR":   ["005930.KS","000660.KS","035420.KS","051910.KS"],
+            "🇨🇳 CN":   ["BABA","JD","PDD","BIDU","9988.HK","0700.HK"],
+            "🇸🇬 SG":   ["D05.SI","O39.SI","U11.SI","Z74.SI"],
+            "🥇 Crypto":["BTC-USD","ETH-USD","BNB-USD"],
+            "📦 ETF":   ["SPY","QQQ","VTI","GLD","USO"],
+        }
+        gl_grp=st.selectbox("Quick global",["— pick region —"]+list(GLOBAL_SHORTCUTS.keys()),key="gl_grp",label_visibility="collapsed")
+        if gl_grp and gl_grp!="— pick region —":
+            gl_sel=st.multiselect("Global picks",GLOBAL_SHORTCUTS[gl_grp],placeholder=f"Pick {gl_grp} stocks…",key=f"gl_ms_{gl_grp}",label_visibility="collapsed")
+        else:
+            gl_sel=[]
+
+        selected_base=set_sel+mai_sel+dr_sel
+        # Global tickers go directly as-is (not appended with .BK)
+        selected_global=custom_sel+gl_sel
+        selected=[to_yf(t) for t in selected_base]+selected_global
 
         # ── Selection summary pill ───────────────────────────────────────────────
-        if selected_base:
-            names_preview=", ".join(selected_base[:6])+("…" if len(selected_base)>6 else "")
+        all_selected_base = selected_base + selected_global
+        if all_selected_base:
+            names_preview=", ".join(all_selected_base[:6])+("…" if len(all_selected_base)>6 else "")
             st.markdown(f"<div style='background:#080f1e;border:1px solid #1a2e48;border-radius:6px;"
                         f"padding:8px 12px;margin-top:4px'>"
-                        f"<span style='color:#4ecca3;font-weight:700'>{len(selected_base)} selected</span>"
+                        f"<span style='color:#4ecca3;font-weight:700'>{len(all_selected_base)} selected</span>"
                         f"<span style='color:#2a4060;font-size:11px'> · {names_preview}</span></div>",unsafe_allow_html=True)
 
         st.markdown("<hr>",unsafe_allow_html=True)
@@ -2010,13 +2064,13 @@ def main():
                     if k in st.session_state: del st.session_state[k]
                 st.rerun()
         with bc2:
-            if st.button("🔄 Refresh",use_container_width=True,help="Force-reload from Yahoo Finance"):
+            if st.button("🔄 Refresh Data",use_container_width=True,help="Force-reload from Yahoo Finance"):
                 st.cache_data.clear(); st.rerun()
 
     TABS=["🔍 Screener","📈 Price","📋 Financials","📊 Fundamentals","⚖️ VI Score","📰 News"]
     tabs=st.tabs(TABS)
     def _need_selection():
-        st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:100px;text-align:center;margin-top:20px'>"
+        st.markdown("<div style='background:#080e1c;border:1px dashed #1a2e48;border-radius:10px;padding:36px;text-align:center;margin-top:20px'>"
                     "<div style='font-size:36px'>←</div><div style='color:#00c8f8;font-size:16px;margin:10px 0 6px;font-weight:600'>Pick a stock in the sidebar</div>"
                     "<div style='color:#2a4060;font-size:13px'>Use the sector icons → stock list on the left</div></div>",unsafe_allow_html=True)
 
@@ -2036,7 +2090,7 @@ def main():
         if not selected: _need_selection()
         else:
             for ticker in selected:
-                base=ticker.replace('.BK',''); name=TICKER_NAMES.get(base,"")
+                base=ticker.replace('.BK','') if ticker.endswith('.BK') else ticker; name=TICKER_NAMES.get(base,base)
                 sg,prof=get_sector_profile(base); sc=prof.get('color','#80cbc4')
                 st.markdown(f"<div style='display:flex;align-items:center;gap:12px;margin:12px 0 8px'>"
                             f"<span style='color:#00c8f8;font-size:18px;font-weight:700'>{base}</span>"
