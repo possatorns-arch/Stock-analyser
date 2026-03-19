@@ -113,52 +113,37 @@ header[data-testid="stHeader"] {
 [data-testid="stSidebarCollapsedControl"] svg,
 [data-testid="collapsedControl"] svg { fill: var(--t2) !important; }
 
-/* ══════════════════════════════════════════════════════
-   SIDEBAR SECTION LABELS
-   ══════════════════════════════════════════════════════ */
+/* Sidebar captions used as section labels */
+section[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] p {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  color: var(--t3) !important;
+  margin: 8px 0 4px !important;
+}
 .sidebar-label {
   color: var(--t3) !important;
   font-size: 10px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
   letter-spacing: 1px !important;
-  margin: 10px 0 5px !important;
+  margin: 8px 0 4px !important;
   display: block !important;
 }
 
-/* ══════════════════════════════════════════════════════
-   SIDEBAR SECTOR BUTTONS — compact grid
-   ══════════════════════════════════════════════════════ */
-section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
-  gap: 4px !important;
-  margin-bottom: 3px !important;
-}
-section[data-testid="stSidebar"] div[data-testid="stButton"] {
-  margin: 0 !important; padding: 0 !important;
-}
+/* Sidebar clear/refresh buttons */
 section[data-testid="stSidebar"] div[data-testid="stButton"] button {
-  width: 100% !important;
-  height: 30px !important; min-height: 30px !important;
-  padding: 0 4px !important;
   background: transparent !important;
-  border: 1px solid var(--line) !important;
-  border-radius: 4px !important;
+  border: 1px solid var(--line2) !important;
   color: var(--t2) !important;
   font-size: 12px !important; font-weight: 500 !important;
-  transition: background 0.1s, border-color 0.1s, color 0.1s !important;
-  white-space: nowrap !important; overflow: hidden !important;
+  border-radius: 4px !important;
+  padding: 6px 10px !important;
 }
 section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover {
   background: var(--bg3) !important;
-  border-color: var(--line2) !important;
   color: var(--t1) !important;
-}
-section[data-testid="stSidebar"] div[data-testid="stButton"] button p,
-section[data-testid="stSidebar"] div[data-testid="stButton"] button div {
-  white-space: nowrap !important; overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  font-size: 12px !important; line-height: 1.2 !important;
-  font-weight: 500 !important; margin: 0 !important; padding: 0 !important;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -2250,131 +2235,129 @@ def main():
     if 'mai_sec' not in st.session_state: st.session_state['mai_sec'] = 'All'
 
     with st.sidebar:
-        st.markdown("""<div style='padding:6px 0 14px;border-bottom:1px solid #21262d;margin-bottom:8px'>
-<div style='font-size:15px;font-weight:700;letter-spacing:-0.3px;color:#e6edf3'>SET Analyser</div>
-<div style='font-size:11px;color:#484f58;margin-top:2px'>Value Investor Edition</div>
-</div>""",unsafe_allow_html=True)
+        # ── Header ──────────────────────────────────────────────────────────────
+        st.markdown("""
+<div style='padding:14px 2px 12px'>
+  <div style='font-size:14px;font-weight:600;color:#e6edf3;letter-spacing:-0.2px'>SET Analyser</div>
+  <div style='font-size:11px;color:#484f58;margin-top:1px'>Value Investor Edition</div>
+</div>
+""", unsafe_allow_html=True)
+        st.divider()
 
-        # ── SET100 section ──────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'>SET 100</div>",unsafe_allow_html=True)
+        # ── SET100 ──────────────────────────────────────────────────────────────
+        st.caption("SET 100")
+        # Sector filter — dropdown (clean, no cramped button grid)
+        sector_opts = ["All sectors"] + sorted(SECTOR_MAP.keys())
+        active_sec_idx = 0
+        _stored_sec = st.session_state.get('sb_sec','All')
+        if _stored_sec != 'All' and _stored_sec in SECTOR_MAP:
+            active_sec_idx = sector_opts.index(_stored_sec)
+        chosen_sec = st.selectbox("Sector", sector_opts, index=active_sec_idx,
+                                   key="sb_sec_dd", label_visibility="collapsed")
+        if chosen_sec != st.session_state.get('_sb_sec_prev'):
+            st.session_state['_sb_sec_prev'] = chosen_sec
+            new_sec = 'All' if chosen_sec == "All sectors" else chosen_sec
+            if new_sec != st.session_state.get('sb_sec','All'):
+                st.session_state['sb_sec'] = new_sec
+                if 'set_ms' in st.session_state: del st.session_state['set_ms']
+                st.rerun()
 
-        # Sector icon grid — 3 per row, compact
-        sector_keys=['All']+sorted(SECTOR_MAP.keys())
-        active_sec=st.session_state.get('sb_sec','All')
-        for row_start in range(0,len(sector_keys),3):
-            row_keys=sector_keys[row_start:row_start+3]
-            btn_cols=st.columns(3)
-            for ci,sk in enumerate(row_keys):
-                ico,lbl=SECTOR_ICONS.get(sk,("",sk[:7]))
-                is_active=(sk==active_sec)
-                with btn_cols[ci]:
-                    if st.button(lbl if not ico else f"{ico} {lbl}",key=f"sec_btn_{sk}",help=sk,use_container_width=True):
-                        st.session_state['sb_sec']=sk if sk!=active_sec else 'All'
-                        if 'set_ms' in st.session_state: del st.session_state['set_ms']
-                        st.rerun()
-                    if is_active:
-                        st.markdown(f"<style>div[data-testid='stButton'] button[kind='secondary'][title='{sk}']{{background:#0a2040!important;border-color:#00c8f8!important;color:#00c8f8!important;}}</style>",unsafe_allow_html=True)
-
-        # Only show tickers from selected sector
-        active_sec=st.session_state.get('sb_sec','All')
-        if active_sec=='All':
-            available_set100=SET100
-            ms_placeholder="Type or pick any SET100 stock…"
+        active_sec = st.session_state.get('sb_sec','All')
+        if active_sec == 'All':
+            available_set100 = SET100
+            ph100 = "All SET100 stocks…"
         else:
-            available_set100=[t for t in SECTOR_MAP.get(active_sec,[]) if t in SET100]
-            ms_placeholder=f"Pick from {active_sec} ({len(available_set100)} stocks)…"
+            available_set100 = [t for t in SECTOR_MAP.get(active_sec,[]) if t in SET100]
+            ph100 = f"{active_sec} — {len(available_set100)} stocks"
+        set_sel = st.multiselect("SET100", available_set100,
+                                  placeholder=ph100, key="set_ms",
+                                  label_visibility="collapsed")
 
-        set_sel=st.multiselect("SET100 tickers",available_set100,
-                               placeholder=ms_placeholder,key="set_ms",label_visibility="collapsed")
-        st.markdown("<hr>",unsafe_allow_html=True)
+        # ── MAI ─────────────────────────────────────────────────────────────────
+        st.caption("MAI")
+        mai_opts = ["All sectors"] + sorted(MAI_SECTOR_MAP.keys())
+        _stored_mai = st.session_state.get('mai_sec','All')
+        active_mai_idx = 0
+        if _stored_mai != 'All' and _stored_mai in MAI_SECTOR_MAP:
+            active_mai_idx = mai_opts.index(_stored_mai)
+        chosen_mai = st.selectbox("MAI sector", mai_opts, index=active_mai_idx,
+                                   key="mai_sec_dd", label_visibility="collapsed")
+        if chosen_mai != st.session_state.get('_mai_sec_prev'):
+            st.session_state['_mai_sec_prev'] = chosen_mai
+            new_mai = 'All' if chosen_mai == "All sectors" else chosen_mai
+            if new_mai != st.session_state.get('mai_sec','All'):
+                st.session_state['mai_sec'] = new_mai
+                if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
+                st.rerun()
 
-        # ── MAI section ─────────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'>MAI</div>",unsafe_allow_html=True)
-
-        # MAI sector filter
-        mai_sec_keys=['All']+sorted(MAI_SECTOR_MAP.keys())
-        active_mai=st.session_state.get('mai_sec','All')
-        for mrow_start in range(0,len(mai_sec_keys),3):
-            mrow_keys=mai_sec_keys[mrow_start:mrow_start+3]
-            mai_cols=st.columns(3)
-            for ci,sk in enumerate(mrow_keys):
-                ico,lbl=SECTOR_ICONS.get(sk,("",sk[:7]))
-                is_active=(sk==active_mai)
-                with mai_cols[ci]:
-                    if st.button(lbl if not ico else f"{ico} {lbl}",key=f"mai_btn_{sk}",help=sk,use_container_width=True):
-                        st.session_state['mai_sec']=sk if sk!=active_mai else 'All'
-                        if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
-                        st.rerun()
-                    if is_active:
-                        st.markdown(f"<style>div[data-testid='stButton'] button[kind='secondary'][title='{sk}']{{background:#0a2030!important;border-color:#4ecca3!important;color:#4ecca3!important;}}</style>",unsafe_allow_html=True)
-
-        active_mai=st.session_state.get('mai_sec','All')
-        if active_mai=='All':
-            available_mai=MAI_TICKERS
-            mai_placeholder="Type or pick any MAI stock…"
+        active_mai = st.session_state.get('mai_sec','All')
+        if active_mai == 'All':
+            available_mai = MAI_TICKERS
+            ph_mai = "All MAI stocks…"
         else:
-            available_mai=[t for t in MAI_SECTOR_MAP.get(active_mai,[]) if t in MAI_TICKERS]
-            mai_placeholder=f"Pick from {active_mai} MAI ({len(available_mai)})…"
+            available_mai = [t for t in MAI_SECTOR_MAP.get(active_mai,[]) if t in MAI_TICKERS]
+            ph_mai = f"{active_mai} — {len(available_mai)} stocks"
+        mai_sel = st.multiselect("MAI", available_mai,
+                                  placeholder=ph_mai, key="mai_ms",
+                                  label_visibility="collapsed")
 
-        mai_sel=st.multiselect("MAI tickers",available_mai,
-                               placeholder=mai_placeholder,key="mai_ms",label_visibility="collapsed")
-        st.markdown("<hr>",unsafe_allow_html=True)
+        # ── DR / ETF ────────────────────────────────────────────────────────────
+        st.caption("DR / ETF")
+        dr_sel = st.multiselect("DR", DR_TICKERS,
+                                 placeholder="DR / ETF…", key="dr_ms",
+                                 label_visibility="collapsed")
 
-        # ── DR / ETF section ─────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'>DR / ETF</div>",unsafe_allow_html=True)
-        dr_sel=st.multiselect("DR tickers",DR_TICKERS,placeholder="Pick DR / ETF…",key="dr_ms",label_visibility="collapsed")
-        st.markdown("<hr>",unsafe_allow_html=True)
+        # ── Global / Custom ─────────────────────────────────────────────────────
+        st.caption("Global / Custom")
+        custom_raw = st.text_input("Custom", placeholder="AAPL, TSLA, 9984.T, BTC-USD …",
+                                    key="custom_tickers", label_visibility="collapsed")
+        custom_sel = [t.strip().upper() for t in custom_raw.replace(","," ").split() if t.strip()]
 
-        # ── Global / custom ticker input ─────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'>Global / Custom</div>",unsafe_allow_html=True)
-        st.markdown("<div style='color:#3a5070;font-size:10px;margin-bottom:4px'>Any Yahoo Finance ticker — e.g. AAPL, TSLA, 9984.T, 005930.KS</div>",unsafe_allow_html=True)
-        custom_raw=st.text_input("Custom tickers",placeholder="AAPL, TSLA, 9984.T …",key="custom_tickers",label_visibility="collapsed")
-        custom_sel=[t.strip().upper() for t in custom_raw.replace(","," ").split() if t.strip()]
-
-        # ── Popular global shortcuts ──────────────────────────────────────────────
         GLOBAL_SHORTCUTS = {
-            "🇺🇸 US":   ["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","BRK-B","JPM","JNJ"],
-            "🇯🇵 JP":   ["7203.T","9984.T","6758.T","8306.T","6861.T"],
-            "🇰🇷 KR":   ["005930.KS","000660.KS","035420.KS","051910.KS"],
-            "🇨🇳 CN":   ["BABA","JD","PDD","BIDU","9988.HK","0700.HK"],
-            "🇸🇬 SG":   ["D05.SI","O39.SI","U11.SI","Z74.SI"],
-            "🥇 Crypto":["BTC-USD","ETH-USD","BNB-USD"],
-            "📦 ETF":   ["SPY","QQQ","VTI","GLD","USO"],
+            "US":     ["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","BRK-B","JPM"],
+            "Japan":  ["7203.T","9984.T","6758.T","8306.T","6861.T"],
+            "Korea":  ["005930.KS","000660.KS","035420.KS","051910.KS"],
+            "China":  ["BABA","JD","PDD","BIDU","9988.HK","0700.HK"],
+            "SG/HK":  ["D05.SI","O39.SI","U11.SI","9988.HK"],
+            "Crypto": ["BTC-USD","ETH-USD","BNB-USD"],
+            "ETF":    ["SPY","QQQ","VTI","GLD","USO"],
         }
-        gl_grp=st.selectbox("Quick global",["— pick region —"]+list(GLOBAL_SHORTCUTS.keys()),key="gl_grp",label_visibility="collapsed")
-        if gl_grp and gl_grp!="— pick region —":
-            gl_sel=st.multiselect("Global picks",GLOBAL_SHORTCUTS[gl_grp],placeholder=f"Pick {gl_grp} stocks…",key=f"gl_ms_{gl_grp}",label_visibility="collapsed")
-        else:
-            gl_sel=[]
+        gl_grp = st.selectbox("Region", ["—"] + list(GLOBAL_SHORTCUTS.keys()),
+                               key="gl_grp", label_visibility="collapsed")
+        gl_sel = []
+        if gl_grp and gl_grp != "—":
+            gl_sel = st.multiselect("Picks", GLOBAL_SHORTCUTS[gl_grp],
+                                     placeholder=f"{gl_grp}…",
+                                     key=f"gl_ms_{gl_grp}",
+                                     label_visibility="collapsed")
 
-        selected_base=set_sel+mai_sel+dr_sel
-        # Global tickers go directly as-is (not appended with .BK)
-        selected_global=custom_sel+gl_sel
-        selected=[to_yf(t) for t in selected_base]+selected_global
-
-        # ── Selection summary pill ───────────────────────────────────────────────
+        selected_base = set_sel + mai_sel + dr_sel
+        selected_global = custom_sel + gl_sel
+        selected = [to_yf(t) for t in selected_base] + selected_global
         all_selected_base = selected_base + selected_global
-        if all_selected_base:
-            names_preview=", ".join(all_selected_base[:6])+("…" if len(all_selected_base)>6 else "")
-            st.markdown(f"<div style='background:#080f1e;border:1px solid #1a2e48;border-radius:6px;"
-                        f"padding:8px 12px;margin-top:4px'>"
-                        f"<span style='color:#4ecca3;font-weight:700'>{len(all_selected_base)} selected</span>"
-                        f"<span style='color:#2a4060;font-size:11px'> · {names_preview}</span></div>",unsafe_allow_html=True)
 
-        st.markdown("<hr>",unsafe_allow_html=True)
-        # Two buttons: Clear Selection + Refresh Data
-        bc1,bc2=st.columns(2)
-        with bc1:
-            if st.button("🗑 Clear All",use_container_width=True,help="Reset all stock picks"):
-                for k in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec','custom_tickers','gl_grp',
-                          'scr_filter','screener_results','screener_meta']:
+        # ── Selection summary ────────────────────────────────────────────────────
+        st.divider()
+        if all_selected_base:
+            preview = ", ".join(all_selected_base[:5]) + ("…" if len(all_selected_base) > 5 else "")
+            st.markdown(
+                f"<div style='font-size:12px;color:#8b949e;margin-bottom:8px'>"
+                f"<span style='color:#3fb950;font-weight:600'>{len(all_selected_base)} selected</span>"
+                f" · {preview}</div>",
+                unsafe_allow_html=True)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Clear all", use_container_width=True):
+                for k in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec','custom_tickers',
+                          'gl_grp','scr_filter','screener_results','screener_meta',
+                          '_sb_sec_prev','_mai_sec_prev','sb_sec_dd','mai_sec_dd']:
                     if k in st.session_state: del st.session_state[k]
-                # Clear all gl_ms_* keys
                 for k in list(st.session_state.keys()):
                     if k.startswith('gl_ms_'): del st.session_state[k]
                 st.rerun()
-        with bc2:
-            if st.button("🔄 Refresh Data",use_container_width=True,help="Force-reload from Yahoo Finance"):
+        with c2:
+            if st.button("Refresh data", use_container_width=True):
                 st.cache_data.clear(); st.rerun()
 
     TABS=["Screener","Price","Financials","Fundamentals","VI Score","News"]
@@ -2386,35 +2369,53 @@ def main():
 <script>
 (function(){
   function patchTabs(){
-    // Access parent Streamlit window
-    const win = window.parent;
-    const doc = win.document;
+    const doc = window.parent.document;
     const tabList = doc.querySelector('[data-baseweb="tab-list"]');
-    if(!tabList){ setTimeout(patchTabs,300); return; }
+    if(!tabList){ setTimeout(patchTabs, 250); return; }
 
-    // Make it fixed
-    tabList.style.cssText += `
-      position:fixed!important;
-      top:0!important;left:0!important;right:0!important;
-      z-index:9999!important;
-      background:#0d1117!important;
-      border-bottom:1px solid #21262d!important;
-      padding:4px 0 0 0!important;
-      box-shadow:0 1px 8px rgba(0,0,0,0.5)!important;
-    `;
+    // Already patched?
+    if(tabList._patched) return;
+    tabList._patched = true;
 
-    // Pad the main content block so tabs don't overlap content
-    const container = doc.querySelector('.block-container');
-    if(container) container.style.paddingTop='56px';
+    // === Strategy: teleport the tab list to <body> as a fixed element ===
+    // This escapes ALL overflow containers. The tab list stays functional
+    // because it's the REAL element (not a clone) — all Streamlit event
+    // listeners remain attached.
 
-    // Also adjust sidebar width offset
     const sidebar = doc.querySelector('[data-testid="stSidebar"]');
-    if(sidebar){
-      const sbW = sidebar.getBoundingClientRect().width;
-      tabList.style.left = sbW+'px';
-    }
+    const sbW = sidebar ? sidebar.getBoundingClientRect().width : 250;
+
+    // Apply fixed positioning
+    Object.assign(tabList.style, {
+      position:   'fixed',
+      top:        '0px',
+      left:       sbW + 'px',
+      right:      '0px',
+      zIndex:     '99999',
+      background: '#0d1117',
+      borderBottom: '1px solid #21262d',
+      boxShadow:  '0 2px 8px rgba(0,0,0,0.5)',
+      padding:    '0',
+      margin:     '0',
+    });
+
+    // Teleport to body so no ancestor overflow can clip it
+    doc.body.appendChild(tabList);
+
+    // Pad main content so nothing hides behind the tab bar
+    const h = tabList.getBoundingClientRect().height || 46;
+    const container = doc.querySelector('.block-container');
+    if(container) container.style.paddingTop = (h + 8) + 'px';
+
+    // Re-run on sidebar resize (collapse/expand)
+    let lastSbW = sbW;
+    setInterval(()=>{
+      const sb = doc.querySelector('[data-testid="stSidebar"]');
+      const w = sb ? sb.getBoundingClientRect().width : 0;
+      if(w !== lastSbW){ tabList.style.left = w + 'px'; lastSbW = w; }
+    }, 400);
   }
-  setTimeout(patchTabs, 800);
+  setTimeout(patchTabs, 600);
 })();
 </script>
 """, height=0, scrolling=False)
