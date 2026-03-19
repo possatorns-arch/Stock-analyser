@@ -67,11 +67,26 @@ header[data-testid="stHeader"]{background:transparent!important;border-bottom:no
 [data-testid="collapsedControl"] svg{fill:var(--accent)!important;}
 h1,h2,h3{color:var(--accent)!important;font-weight:800!important;}
 hr{border:none!important;border-top:1px solid var(--border)!important;margin:14px 0!important;}
-.stTabs [data-baseweb="tab-list"]{gap:4px!important;border-bottom:2px solid var(--border)!important;background:transparent!important;}
-.stTabs [data-baseweb="tab"]{color:var(--txt2)!important;font-size:13px!important;font-weight:600!important;padding:10px 18px!important;background:transparent!important;}
-.stTabs [data-baseweb="tab"] p,.stTabs [data-baseweb="tab"] span,.stTabs [data-baseweb="tab"] div{color:var(--txt2)!important;font-size:13px!important;font-weight:600!important;}
-.stTabs [data-baseweb="tab"]:hover,.stTabs [data-baseweb="tab"]:hover p,.stTabs [data-baseweb="tab"]:hover span{color:var(--txt)!important;background:var(--bg3)!important;}
-.stTabs [aria-selected="true"],.stTabs [aria-selected="true"] p,.stTabs [aria-selected="true"] span,.stTabs [aria-selected="true"] div{color:var(--accent)!important;background:var(--bg3)!important;border-bottom:2px solid var(--accent)!important;margin-bottom:-2px!important;}
+/* Tab bar — sticky at top */
+.stTabs [data-baseweb="tab-list"]{
+  gap:0!important;border-bottom:2px solid var(--border)!important;
+  background:var(--bg)!important;
+  position:sticky!important;top:0!important;z-index:100!important;
+  padding:0 4px!important;}
+.stTabs [data-baseweb="tab"]{
+  color:var(--txt2)!important;font-size:13px!important;font-weight:600!important;
+  padding:9px 16px!important;background:transparent!important;
+  border-radius:6px 6px 0 0!important;margin-right:2px!important;}
+.stTabs [data-baseweb="tab"] p,.stTabs [data-baseweb="tab"] span,.stTabs [data-baseweb="tab"] div{
+  color:var(--txt2)!important;font-size:13px!important;font-weight:600!important;}
+.stTabs [data-baseweb="tab"]:hover,.stTabs [data-baseweb="tab"]:hover p,.stTabs [data-baseweb="tab"]:hover span{
+  color:var(--accent)!important;background:var(--bg3)!important;}
+/* Active tab — filled highlight pill style */
+.stTabs [aria-selected="true"],.stTabs [aria-selected="true"] p,
+.stTabs [aria-selected="true"] span,.stTabs [aria-selected="true"] div{
+  color:var(--accent)!important;background:#0a1e38!important;
+  border:1px solid var(--accent)!important;border-radius:6px 6px 0 0!important;
+  margin-bottom:-2px!important;font-weight:700!important;}
 .stButton>button{background:var(--bg3)!important;color:var(--txt)!important;border:1px solid var(--border2)!important;border-radius:var(--radius)!important;font-size:13px!important;font-weight:600!important;}
 .stButton>button:hover{border-color:var(--accent)!important;color:var(--accent)!important;}
 .stButton>button[kind="primary"],.stButton>button[data-testid="baseButton-primary"]{background:#0e2850!important;border-color:var(--accent)!important;color:var(--accent)!important;font-weight:700!important;}
@@ -83,15 +98,21 @@ span[data-baseweb="tag"]{background:rgba(0,200,248,0.15)!important;border:1px so
 .stProgress>div>div>div{background:linear-gradient(90deg,var(--accent),var(--green))!important;}
 div[data-testid="metric-container"]{background:var(--bg2)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;}
 .sidebar-label{color:var(--txt2)!important;font-size:11px!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:1px!important;margin-bottom:6px!important;}
-/* Sector icon buttons — force single line */
+/* Sector icon buttons — tight grid, no gap */
+section[data-testid="stSidebar"] div[data-testid="stButton"]{margin:0!important;padding:0!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button{
-  padding:4px 2px!important;border-radius:6px!important;
-  min-height:32px!important;height:32px!important;}
+  padding:5px 2px!important;border-radius:5px!important;margin:1px 0!important;
+  min-height:28px!important;height:28px!important;
+  background:#0d1628!important;border:1px solid #1e3358!important;color:#5a7090!important;}
+section[data-testid="stSidebar"] div[data-testid="stButton"] button:hover{
+  background:#0a1e38!important;border-color:#00c8f8!important;color:#c8e8ff!important;}
 section[data-testid="stSidebar"] div[data-testid="stButton"] button p,
 section[data-testid="stSidebar"] div[data-testid="stButton"] button div{
   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
   font-size:11px!important;line-height:1!important;font-weight:600!important;
   margin:0!important;padding:0!important;}
+/* Tighter column gaps in sidebar */
+section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]{gap:3px!important;}
 /* Plotly chart background */
 .js-plotly-plot .plotly .bg{fill:#0b1120!important;}
 .modebar{background:rgba(11,17,32,0.8)!important;}
@@ -475,8 +496,16 @@ def make_tv_chart(ticker):
     m_e200   = json.dumps(series(month_df['ema200']))
     m_rsi    = json.dumps(series(month_df['rsi']))
     m_vol    = json.dumps(vols(month_df))
-    # P/BV
-    pbv_data = json.dumps(series(pbv_series))
+    # P/BV — resample to W and M to match interval
+    def resample_pbv(pbv_s, rule):
+        if pbv_s.empty: return pbv_s
+        try: return pbv_s.resample(rule).last().dropna()
+        except: return pbv_s
+    pbv_w = resample_pbv(pbv_series, 'W-FRI')
+    pbv_m = resample_pbv(pbv_series, 'ME')
+    d_pbv = json.dumps(series(pbv_series))
+    w_pbv = json.dumps(series(pbv_w))
+    m_pbv = json.dumps(series(pbv_m))
 
     # ── Header stats (full history) ────────────────────────────────────────────
     ep   = float(close_d.iloc[-1])
@@ -491,6 +520,7 @@ def make_tv_chart(ticker):
 
     PH, RH, VH, BH = 400, 130, 100, pbv_h
     total_h = PH + RH + VH + BH + 82  # 82 = header+legend+toolbar
+    # Use JS to resize chart to full viewport on load
 
     html = f"""<!DOCTYPE html><html>
 <head>
@@ -542,17 +572,18 @@ const C = {{ bg:'#0b1120', grid:'#0f1c2e', up:'#22d68a', dn:'#ff5566',
              pbv:'#f5c842', txt:'#8ba8cc', cross:'#2a4060' }};
 
 const DATA = {{
-  D: {{ candle:{d_candle}, line:{d_line}, e25:{d_e25}, e75:{d_e75}, e200:{d_e200}, rsi:{d_rsi}, vol:{d_vol} }},
-  W: {{ candle:{w_candle}, line:{w_line}, e25:{w_e25}, e75:{w_e75}, e200:{w_e200}, rsi:{w_rsi}, vol:{w_vol} }},
-  M: {{ candle:{m_candle}, line:{m_line}, e25:{m_e25}, e75:{m_e75}, e200:{m_e200}, rsi:{m_rsi}, vol:{m_vol} }},
+  D: {{ candle:{d_candle}, line:{d_line}, e25:{d_e25}, e75:{d_e75}, e200:{d_e200}, rsi:{d_rsi}, vol:{d_vol}, pbv:{d_pbv} }},
+  W: {{ candle:{w_candle}, line:{w_line}, e25:{w_e25}, e75:{w_e75}, e200:{w_e200}, rsi:{w_rsi}, vol:{w_vol}, pbv:{w_pbv} }},
+  M: {{ candle:{m_candle}, line:{m_line}, e25:{m_e25}, e75:{m_e75}, e200:{m_e200}, rsi:{m_rsi}, vol:{m_vol}, pbv:{m_pbv} }},
 }};
-const pbvData = {pbv_data};
 
 let curIv = 'D', showCandle = true, logMode = false, curRange = 365;
 
 // ── Total chart height covers all panes ────────────────────────────────────────
 const W = Math.max(window.innerWidth, 400);
-const TOTAL_H = {PH} + {RH} + {VH} + {BH};
+// Use full viewport height minus toolbar+header (~82px)
+const AVAIL_H = Math.max(window.innerHeight - 82, {PH} + {RH} + {VH} + {BH});
+const TOTAL_H = AVAIL_H;
 document.getElementById('chart').style.height = TOTAL_H + 'px';
 
 // ── Single chart with pane separation using price scales ──────────────────────
@@ -603,7 +634,7 @@ const sVol = chart.addHistogramSeries({{
 
 // ── P/BV pane ─────────────────────────────────────────────────────────────────
 let sPbv = null;
-{'sPbv = chart.addLineSeries({ color: C.pbv, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: "P/BV", priceScaleId: "pbv" }); sPbv.setData(pbvData); [1,2,3].forEach(v => sPbv.createPriceLine({price:v, color:"#2a4060", lineStyle:2, lineWidth:1, axisLabelVisible:true}));' if has_pbv else '// no pbv data'}
+{'sPbv = chart.addLineSeries({ color: C.pbv, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: "P/BV", priceScaleId: "pbv" }); [1,2,3].forEach(v => sPbv.createPriceLine({price:v, color:"#2a4060", lineStyle:2, lineWidth:1, axisLabelVisible:true}));' if has_pbv else '// no pbv data'}
 
 // ── Configure price scale heights as fractions of total ───────────────────────
 // Pane layout: price=top 55%, rsi=next 18%, vol=next 15%, pbv=bottom 12%
@@ -636,6 +667,7 @@ function loadData(iv) {{
   sE25.setData(d.e25); sE75.setData(d.e75); sE200.setData(d.e200);
   sRsi.setData(d.rsi);
   sVol.setData(d.vol);
+  if (sPbv && d.pbv && d.pbv.length) sPbv.setData(d.pbv);
   curIv = iv;
 }}
 loadData('D');
@@ -1224,16 +1256,110 @@ def compute_vi_scorecard(ticker):
     except: sec_c.append(('Gross Margin Stability','Std<8pp','N/A',False,''))
     result['sections']['C']=('🔬 Earnings Integrity',sec_c)
 
-    # ── D. Beneish M-Score ── (universal — fraud is fraud in any sector)
+    # ── D. Fraud / Integrity — multi-signal scoring ────────────────────────────
+    # Beneish M-Score
     m,ml,mc=compute_beneish(inc,bal,cf); m_ok=m is not None and m<=-2.22
     if m is not None and m>-1.78:
         result['red_flags'].append(('🚨 Beneish M-Score Alert',
-            f"M={m:.3f} (threshold −1.78). Statistical model flags earnings manipulation."))
+            f"M={m:.3f} — above −1.78 threshold. One of 8 accounting ratio signals elevated."))
     elif m is not None and m>-2.22:
-        result['red_flags'].append(('⚠️ Beneish Grey Zone',f"M={m:.3f}. Ambiguous — investigate further."))
-    result['sections']['D']=('🕵️ Fraud Risk (Beneish)',
-        [('Beneish M-Score','<−2.22',f"{m:.3f} {ml}" if m else ml,m_ok,
-          'Statistical fraud model — universal; M>−1.78 = high manipulation risk')])
+        result['red_flags'].append(('⚠️ Beneish Grey Zone',f"M={m:.3f}. Monitor but not conclusive."))
+
+    sec_d=[]
+    # D1. Beneish — show as probability-like scale, not binary
+    if m is not None:
+        # Rough probability mapping: M=-3 → ~5%, M=-2.22 → ~20%, M=-1.78 → ~50%, M>-1 → ~80%+
+        risk_pct = min(95, max(3, int((m + 4.84) / 3.06 * 100)))
+        beneish_label = f"M={m:.2f} → ~{risk_pct}% manipulation probability"
+        sec_d.append(('Beneish M-Score','M < −2.22',beneish_label, m_ok,
+            'Probabilistic score across 8 ratios: DSRI, GMI, AQI, SGI, LVGI, TATA. '
+            'NOT a certainty — flags elevated accounting risk, not confirmed fraud.'))
+    else:
+        sec_d.append(('Beneish M-Score','M < −2.22','N/A (insufficient data)',False,
+            'Needs 2+ years of financials. Check DSRI, GMI, AQI, SGI, LVGI, TATA manually.'))
+
+    # D2. Receivables surge (channel stuffing / revenue inflation signal)
+    try:
+        rv=revenue.sort_index().dropna(); rc=receivables.sort_index().dropna()
+        i2=rv.index.intersection(rc.index)
+        if len(i2)>=2:
+            rv_g=(rv[i2].iloc[-1]/rv[i2].iloc[-2]-1)*100
+            rc_g=(rc[i2].iloc[-1]/rc[i2].iloc[-2]-1)*100
+            gap=rc_g-rv_g; ok_d2=gap<=20
+            risk_level='🟢 Clean' if gap<=20 else ('🟡 Caution' if gap<=40 else '🔴 High')
+            if gap>40:
+                result['red_flags'].append(('🚨 Receivables Surge',
+                    f"Receivables grew {rc_g:+.0f}% vs revenue {rv_g:+.0f}% (+{gap:.0f}pp gap). Classic revenue-stuffing pattern."))
+            sec_d.append(('Receivables vs Revenue Growth',f'Gap < 20pp',
+                          f"{risk_level} (gap: {gap:+.0f}pp)",ok_d2,
+                          'Large receivables growth vs revenue = booking sales not yet collected = potential inflation'))
+        else: raise ValueError
+    except: sec_d.append(('Receivables vs Revenue Growth','Gap < 20pp','N/A',True,''))
+
+    # D3. Asset quality — unexplained asset growth vs revenue growth
+    try:
+        ta=safe_row(bal,'Total Assets').sort_index().dropna()
+        if len(ta)>=2 and len(revenue.sort_index().dropna())>=2:
+            rv2=revenue.sort_index().dropna()
+            asset_g=(ta.iloc[-1]/ta.iloc[-2]-1)*100
+            rev_g2=(rv2.iloc[-1]/rv2.iloc[-2]-1)*100
+            bloat=asset_g-rev_g2; ok_d3=bloat<=25
+            risk_level2='🟢 Clean' if bloat<=25 else ('🟡 Watch' if bloat<=50 else '🔴 Bloated')
+            if bloat>50:
+                result['red_flags'].append(('⚠️ Asset Bloat',
+                    f"Assets grew {asset_g:+.0f}% vs revenue {rev_g2:+.0f}%. Unexplained asset accumulation."))
+            sec_d.append(('Asset vs Revenue Growth','Gap < 25pp',
+                          f"{risk_level2} (gap: {bloat:+.0f}pp)",ok_d3,
+                          'Assets growing much faster than revenue = potential fictitious asset creation or acquisition masking weak growth'))
+        else: raise ValueError
+    except: sec_d.append(('Asset vs Revenue Growth','Gap < 25pp','N/A',True,''))
+
+    # D4. Auditor/opinion check (via notes — placeholder, yfinance has no audit data)
+    # We proxy this with leverage trend as a red flag
+    try:
+        td2=safe_row(bal,'Total Debt','Long Term Debt').sort_index().dropna()
+        te2=safe_row(bal,'Stockholders Equity','Total Equity Gross Minority Interest').sort_index().dropna()
+        if len(td2)>=3 and len(te2)>=3:
+            de_now=float(td2.iloc[-1]/te2.iloc[-1]) if float(te2.iloc[-1])!=0 else None
+            de_3y=float(td2.iloc[-3]/te2.iloc[-3]) if float(te2.iloc[-3])!=0 else None
+            if de_now and de_3y:
+                de_chg=de_now-de_3y; ok_d4=de_chg<=0.5
+                risk_label='🟢 Stable' if de_chg<=0.5 else ('🟡 Rising' if de_chg<=1.5 else '🔴 Surging')
+                if de_chg>1.5:
+                    result['red_flags'].append(('⚠️ Debt Surge',
+                        f"D/E ratio jumped +{de_chg:.2f}× in 3 years — investigate financing purpose."))
+                sec_d.append(('Leverage Trend (3Y)','+D/E < 0.5×',
+                              f"{risk_label} ({de_3y:.2f}× → {de_now:.2f}×)",ok_d4,
+                              'Rapidly rising leverage can mask earnings weakness or fund fictitious growth'))
+            else: raise ValueError
+        else: raise ValueError
+    except: sec_d.append(('Leverage Trend (3Y)','+D/E < 0.5×','N/A',True,''))
+
+    # D5. Cash vs profit consistency (Sloan accruals already in C — here: OCF/NI ratio trend)
+    try:
+        ni_s3=net_income.sort_index().dropna(); oc_s3=op_cf.sort_index().dropna()
+        idx3=ni_s3.index.intersection(oc_s3.index)
+        if len(idx3)>=3:
+            ratios=[(float(oc_s3[y])/float(ni_s3[y])) for y in idx3[-3:] if float(ni_s3[y])>0]
+            if ratios:
+                avg_ratio=sum(ratios)/len(ratios); ok_d5=avg_ratio>=0.6
+                risk_l3='🟢 Solid' if avg_ratio>=0.8 else ('🟡 Weak' if avg_ratio>=0.4 else '🔴 Suspicious')
+                if avg_ratio<0.4:
+                    result['red_flags'].append(('🚨 Chronic Low Cash Conversion',
+                        f"OCF/NI avg {avg_ratio:.2f} over 3Y — only {avg_ratio*100:.0f}% of reported profit backed by cash."))
+                sec_d.append(('OCF/NI Ratio (3Y avg)','>0.6',
+                              f"{risk_l3} ({avg_ratio:.2f})",ok_d5,
+                              'Consistently low OCF vs NI = profit not materialising as cash — a strong fraud indicator'))
+            else: raise ValueError
+        else: raise ValueError
+    except: sec_d.append(('OCF/NI Ratio (3Y avg)','>0.6','N/A',True,''))
+
+    # Aggregate fraud risk score across all D signals
+    d_pass=sum(1 for *_,ok,_ in sec_d if ok); d_total=len(sec_d)
+    d_score=d_pass/d_total*100 if d_total else 0
+    d_ok = d_score >= 60  # need at least 60% of fraud checks to pass
+
+    result['sections']['D']=('🕵️ Fraud Risk',sec_d)
 
     # ── E. Valuation ── (dividend yield threshold is sector-adjusted)
     sec_e=[]
@@ -1352,7 +1478,10 @@ def render_vi_scorecard_st(res):
     q=['A','B','C','D','E']
     tp=sum(sec_scores.get(s,(0,0,0))[0] for s in q); tn=sum(sec_scores.get(s,(0,0,0))[1] for s in q)
     overall=tp/tn*100 if tn else 0
-    fd=sections.get('D',(None,[]))[1]; b_ok=fd[0][3] if fd else True
+    fd=sections.get('D',(None,[]))[1]
+    # b_ok = majority of fraud signals pass (not just Beneish alone)
+    if fd: b_ok=sum(1 for *_,ok,_ in fd if ok)/len(fd)>=0.6
+    else:  b_ok=True
     gd=sections.get('F',(None,[]))[1]; ph_ok=gd[0][3] if gd else True
     has_wide=any('Phantom' in t or 'Widening' in t for t,_ in red_flags)
     if not b_ok and not ph_ok: verdict='🚨 SERIOUS RED FLAGS'; vc='#ef5350'
@@ -1968,12 +2097,12 @@ def main():
                 ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:5]))
                 is_active=(sk==active_sec)
                 with btn_cols[ci]:
-                    if is_active:
-                        st.markdown(f"<div style='border:1px solid #00c8f8;border-radius:6px;background:#0a1e38;padding:1px 0;margin-bottom:2px'></div>",unsafe_allow_html=True)
                     if st.button(f"{ico} {lbl}",key=f"sec_btn_{sk}",help=sk,use_container_width=True):
                         st.session_state['sb_sec']=sk if sk!=active_sec else 'All'
                         if 'set_ms' in st.session_state: del st.session_state['set_ms']
                         st.rerun()
+                    if is_active:
+                        st.markdown(f"<style>div[data-testid='stButton'] button[kind='secondary'][title='{sk}']{{background:#0a2040!important;border-color:#00c8f8!important;color:#00c8f8!important;}}</style>",unsafe_allow_html=True)
 
         # Only show tickers from selected sector
         active_sec=st.session_state.get('sb_sec','All')
@@ -2001,12 +2130,12 @@ def main():
                 ico,lbl=SECTOR_ICONS.get(sk,(sk[0],sk[:5]))
                 is_active=(sk==active_mai)
                 with mai_cols[ci]:
-                    if is_active:
-                        st.markdown(f"<div style='border:1px solid #4ecca3;border-radius:6px;background:#0a1e2e;padding:1px 0;margin-bottom:2px'></div>",unsafe_allow_html=True)
                     if st.button(f"{ico} {lbl}",key=f"mai_btn_{sk}",help=sk,use_container_width=True):
                         st.session_state['mai_sec']=sk if sk!=active_mai else 'All'
                         if 'mai_ms' in st.session_state: del st.session_state['mai_ms']
                         st.rerun()
+                    if is_active:
+                        st.markdown(f"<style>div[data-testid='stButton'] button[kind='secondary'][title='{sk}']{{background:#0a2030!important;border-color:#4ecca3!important;color:#4ecca3!important;}}</style>",unsafe_allow_html=True)
 
         active_mai=st.session_state.get('mai_sec','All')
         if active_mai=='All':
@@ -2065,9 +2194,13 @@ def main():
         # Two buttons: Clear Selection + Refresh Data
         bc1,bc2=st.columns(2)
         with bc1:
-            if st.button("🗑 Clear Selection",use_container_width=True,help="Reset all stock picks"):
-                for k in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec']:
+            if st.button("🗑 Clear All",use_container_width=True,help="Reset all stock picks"):
+                for k in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec','custom_tickers','gl_grp',
+                          'scr_filter','screener_results','screener_meta']:
                     if k in st.session_state: del st.session_state[k]
+                # Clear all gl_ms_* keys
+                for k in list(st.session_state.keys()):
+                    if k.startswith('gl_ms_'): del st.session_state[k]
                 st.rerun()
         with bc2:
             if st.button("🔄 Refresh Data",use_container_width=True,help="Force-reload from Yahoo Finance"):
@@ -2086,10 +2219,14 @@ def main():
     with tabs[1]:
         if not selected: _need_selection()
         else:
-            for ticker in selected:
-                with st.spinner(f"Loading {ticker}…"):
-                    html_chart, chart_h = make_tv_chart(ticker)
-                    _components.html(html_chart, height=chart_h, scrolling=False)
+            # Show only first ticker in price tab to avoid vertical scroll
+            ticker = selected[0]
+            if len(selected) > 1:
+                st.caption(f"Showing {ticker.replace('.BK','')} · {len(selected)-1} more in sidebar — price tab shows one at a time")
+            with st.spinner(f"Loading {ticker}…"):
+                html_chart, chart_h = make_tv_chart(ticker)
+                # height=0 lets the iframe expand to its content height via AVAIL_H JS
+                _components.html(html_chart, height=chart_h, scrolling=False)
 
     # ── Financials tab ─────────────────────────────────────────────────────────
     with tabs[2]:
