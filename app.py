@@ -499,15 +499,11 @@ def make_tv_chart(ticker):
 <style>
 * {{ box-sizing:border-box; margin:0; padding:0; }}
 body {{ background:#0b1120; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden; user-select:none; }}
-#hdr {{ padding:7px 14px 3px; color:#dce9ff; font-size:12.5px; font-weight:600;
-        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
-#stats {{ padding:0 14px 4px; font-size:11px; color:#4a6480; }}
+#hdr  {{ padding:7px 14px 3px; color:#dce9ff; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+#stats {{ padding:0 14px 4px; font-size:11px; color:#4a6480; min-height:18px; }}
 #ohlc  {{ display:inline; }}
 #pct   {{ display:inline; margin-left:10px; }}
-.pane  {{ width:100%; }}
-#p-rsi {{ border-top:1px solid #1a2a40; }}
-#p-vol {{ border-top:1px solid #1a2a40; }}
-#p-pbv {{ border-top:1px solid #1a2a40; }}
+#chart {{ width:100%; }}
 .toolbar {{ display:flex; gap:3px; padding:5px 10px; background:#080e1c;
             border-top:1px solid #0e1a2e; flex-wrap:nowrap; align-items:center; }}
 .pb {{ background:#111a2e; border:1px solid #1e3358; color:#5a7090;
@@ -516,43 +512,35 @@ body {{ background:#0b1120; font-family:-apple-system,BlinkMacSystemFont,'Segoe 
 .pb:hover {{ background:#0d1e38; border-color:#00c8f8; color:#c8e8ff; }}
 .pb.active {{ background:#0a1e38; border-color:#00c8f8; color:#00c8f8; }}
 .sep {{ width:1px; height:16px; background:#1e3358; margin:0 3px; }}
-.spacer {{ flex:1; }}
 </style>
 </head>
 <body>
 <div id="hdr">{title}</div>
 <div id="stats"><span id="ohlc"></span><span id="pct"></span></div>
-<div id="p-price" class="pane"></div>
-<div id="p-rsi"   class="pane"></div>
-<div id="p-vol"   class="pane"></div>
-{'<div id="p-pbv" class="pane"></div>' if has_pbv else ''}
+<div id="chart"></div>
 <div class="toolbar">
-  <!-- Period -->
   <button class="pb" onclick="setRange(90)">3M</button>
   <button class="pb" onclick="setRange(180)">6M</button>
-  <button class="pb active" id="pb1y" onclick="setRange(365)">1Y</button>
+  <button class="pb active" onclick="setRange(365)">1Y</button>
   <button class="pb" onclick="setRange(730)">2Y</button>
   <button class="pb" onclick="setRange(1825)">5Y</button>
   <button class="pb" onclick="setRange(99999)">Max</button>
   <div class="sep"></div>
-  <!-- Interval -->
-  <button class="pb active" id="ibD" onclick="setInterval('D')">D</button>
-  <button class="pb" id="ibW" onclick="setInterval('W')">W</button>
-  <button class="pb" id="ibM" onclick="setInterval('M')">M</button>
+  <button class="pb active" id="ibD" onclick="setIv('D')">D</button>
+  <button class="pb" id="ibW" onclick="setIv('W')">W</button>
+  <button class="pb" id="ibM" onclick="setIv('M')">M</button>
   <div class="sep"></div>
-  <!-- Type + tools -->
   <button class="pb" id="btn_type" onclick="toggleType()">Line</button>
   <button class="pb" id="btn_log"  onclick="toggleLog()">Log</button>
-  <button class="pb" onclick="resetZoom()">⟳</button>
+  <button class="pb" onclick="chart.timeScale().fitContent()">⟳</button>
 </div>
 
 <script>
-const C = {{ bg:'#0b1120',grid:'#0f1c2e',up:'#22d68a',dn:'#ff5566',
-             e25:'#ff69b4',e75:'#00e676',e200:'#666',
-             rsi:'#a0b8d0',rsiOB:'#ef5350',rsiOS:'#26c6da',
-             pbv:'#f5c842',txt:'#8ba8cc',cross:'#2a4060' }};
+const C = {{ bg:'#0b1120', grid:'#0f1c2e', up:'#22d68a', dn:'#ff5566',
+             e25:'#ff69b4', e75:'#00e676', e200:'#666',
+             rsi:'#a0b8d0', rsiOB:'#ef5350', rsiOS:'#26c6da',
+             pbv:'#f5c842', txt:'#8ba8cc', cross:'#2a4060' }};
 
-// ── All interval data ──────────────────────────────────────────────────────────
 const DATA = {{
   D: {{ candle:{d_candle}, line:{d_line}, e25:{d_e25}, e75:{d_e75}, e200:{d_e200}, rsi:{d_rsi}, vol:{d_vol} }},
   W: {{ candle:{w_candle}, line:{w_line}, e25:{w_e25}, e75:{w_e75}, e200:{w_e200}, rsi:{w_rsi}, vol:{w_vol} }},
@@ -560,94 +548,100 @@ const DATA = {{
 }};
 const pbvData = {pbv_data};
 
-let curInterval = 'D';
-let showCandle = true;
-let logMode = false;
-let curRange = 365;  // days
+let curIv = 'D', showCandle = true, logMode = false, curRange = 365;
 
-// ── Chart heights ──────────────────────────────────────────────────────────────
-const W  = Math.max(window.innerWidth, 400);
-const PH = {PH}, RH = {RH}, VH = {VH}, BH = {BH};
+// ── Total chart height covers all panes ────────────────────────────────────────
+const W = Math.max(window.innerWidth, 400);
+const TOTAL_H = {PH} + {RH} + {VH} + {BH};
+document.getElementById('chart').style.height = TOTAL_H + 'px';
 
-document.getElementById('p-price').style.height = PH+'px';
-document.getElementById('p-rsi').style.height   = RH+'px';
-document.getElementById('p-vol').style.height   = VH+'px';
-{'document.getElementById("p-pbv").style.height = BH+"px";' if has_pbv else '// no pbv'}
-
-const PS_W = 68; // fixed price-scale width → perfect x-axis alignment
-const mkOpts = (h, showTime) => ({{
-  width:W, height:h,
-  layout:{{ background:{{color:C.bg}}, textColor:C.txt, fontSize:11 }},
-  grid:{{ vertLines:{{color:C.grid}}, horzLines:{{color:C.grid}} }},
-  crosshair:{{ mode:LightweightCharts.CrosshairMode.Normal,
-               vertLine:{{color:C.cross,width:1,labelBackgroundColor:'#1e3358'}},
-               horzLine:{{color:C.cross,width:1,labelBackgroundColor:'#1e3358'}} }},
-  timeScale:{{ borderColor:C.grid, timeVisible:!!showTime, secondsVisible:false,
-               rightOffset:12, fixRightEdge:false }},
-  rightPriceScale:{{ borderColor:C.grid, minimumWidth:PS_W }},
-  leftPriceScale:{{ visible:false }},
-  handleScroll:true, handleScale:true,
+// ── Single chart with pane separation using price scales ──────────────────────
+const chart = LightweightCharts.createChart(document.getElementById('chart'), {{
+  width: W, height: TOTAL_H,
+  layout: {{ background: {{color: C.bg}}, textColor: C.txt, fontSize: 11 }},
+  grid: {{ vertLines: {{color: C.grid}}, horzLines: {{color: C.grid}} }},
+  crosshair: {{
+    mode: LightweightCharts.CrosshairMode.Normal,
+    vertLine: {{ color: C.cross, labelBackgroundColor: '#1e3358' }},
+    horzLine: {{ color: C.cross, labelBackgroundColor: '#1e3358' }},
+  }},
+  timeScale: {{ borderColor: C.grid, timeVisible: true, secondsVisible: false,
+                rightOffset: 8, fixRightEdge: true }},
+  rightPriceScale: {{ visible: true, borderColor: C.grid }},
+  handleScroll: true, handleScale: true,
+  kineticScroll: {{ mouse: true, touch: true }},
 }});
 
-const cP = LightweightCharts.createChart(document.getElementById('p-price'), mkOpts(PH, false));
-const cR = LightweightCharts.createChart(document.getElementById('p-rsi'),   mkOpts(RH, false));
-const cV = LightweightCharts.createChart(document.getElementById('p-vol'),   mkOpts(VH, false));
-{'const cB = LightweightCharts.createChart(document.getElementById("p-pbv"), mkOpts(BH, true));' if has_pbv else 'const cB = null;'}
-
-// ── Hide time axis on intermediate panes; show only on bottom ────────────────
-// Suppress tick labels on price + RSI panes so only bottom pane shows dates
-// Hide time scale entirely on upper panels — perfect alignment guaranteed
-cP.applyOptions({{timeScale:{{visible:false}}}});
-cR.applyOptions({{timeScale:{{visible:false}}}});
-// ── Series ────────────────────────────────────────────────────────────────────
-const sCand = cP.addCandlestickSeries({{
-  upColor:C.up,downColor:C.dn,borderUpColor:C.up,borderDownColor:C.dn,wickUpColor:C.up,wickDownColor:C.dn
+// ── Price pane (main, default right scale) ────────────────────────────────────
+const sCand = chart.addCandlestickSeries({{
+  upColor: C.up, downColor: C.dn,
+  borderUpColor: C.up, borderDownColor: C.dn,
+  wickUpColor: C.up, wickDownColor: C.dn,
+  priceScaleId: 'price',
 }});
-const sLine = cP.addLineSeries({{ color:C.up, lineWidth:2, visible:false, priceLineVisible:false }});
-const sE25  = cP.addLineSeries({{ color:C.e25,  lineWidth:1, priceLineVisible:false, lastValueVisible:false, title:'EMA25'  }});
-const sE75  = cP.addLineSeries({{ color:C.e75,  lineWidth:1, priceLineVisible:false, lastValueVisible:false, title:'EMA75'  }});
-const sE200 = cP.addLineSeries({{ color:C.e200, lineWidth:1, priceLineVisible:false, lastValueVisible:false, title:'EMA200' }});
-const sRsi  = cR.addLineSeries({{ color:C.rsi, lineWidth:1.5, priceLineVisible:false }});
-[{{p:70,c:C.rsiOB,s:1}},{{p:50,c:'#222',s:2}},{{p:30,c:C.rsiOS,s:1}}].forEach(l=>
-  sRsi.createPriceLine({{price:l.p,color:l.c,lineStyle:l.s,lineWidth:1,axisLabelVisible:true}}));
-cR.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.05,bottom:0.05}},mode:0}}}});
-const sVol  = cV.addHistogramSeries({{ priceFormat:{{type:'volume'}} }});
-cV.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0}}}}}});
+const sLine = chart.addLineSeries({{
+  color: C.up, lineWidth: 2, visible: false, priceLineVisible: false,
+  priceScaleId: 'price',
+}});
+const sE25 = chart.addLineSeries({{ color: C.e25, lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'EMA25', priceScaleId: 'price' }});
+const sE75 = chart.addLineSeries({{ color: C.e75, lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'EMA75', priceScaleId: 'price' }});
+const sE200= chart.addLineSeries({{ color: C.e200,lineWidth: 1, priceLineVisible: false, lastValueVisible: true, title: 'EMA200',priceScaleId: 'price' }});
+
+// ── RSI pane (separate scale, positioned below price) ─────────────────────────
+const sRsi = chart.addLineSeries({{
+  color: C.rsi, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true,
+  priceScaleId: 'rsi',
+}});
+[{{p:70,c:C.rsiOB,s:1}},{{p:50,c:'#222',s:2}},{{p:30,c:C.rsiOS,s:1}}].forEach(l =>
+  sRsi.createPriceLine({{price:l.p, color:l.c, lineStyle:l.s, lineWidth:1, axisLabelVisible:true}}));
+
+// ── Volume pane ────────────────────────────────────────────────────────────────
+const sVol = chart.addHistogramSeries({{
+  priceFormat: {{type: 'volume'}},
+  priceScaleId: 'vol',
+}});
+
+// ── P/BV pane ─────────────────────────────────────────────────────────────────
 let sPbv = null;
-if (cB) {{
-  sPbv = cB.addLineSeries({{ color:C.pbv, lineWidth:1.5, priceLineVisible:false, title:'P/BV' }});
-  sPbv.setData(pbvData);
-  cB.applyOptions({{rightPriceScale:{{scaleMargins:{{top:0.1,bottom:0.1}}}}}});
-  // P/BV reference lines at 1×, 2×, 3×
-  [1,2,3].forEach(v => sPbv.createPriceLine({{price:v,color:'#2a4060',lineStyle:2,lineWidth:1,axisLabelVisible:true}}));
+{'sPbv = chart.addLineSeries({ color: C.pbv, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: "P/BV", priceScaleId: "pbv" }); sPbv.setData(pbvData); [1,2,3].forEach(v => sPbv.createPriceLine({price:v, color:"#2a4060", lineStyle:2, lineWidth:1, axisLabelVisible:true}));' if has_pbv else '// no pbv data'}
+
+// ── Configure price scale heights as fractions of total ───────────────────────
+// Pane layout: price=top 55%, rsi=next 18%, vol=next 15%, pbv=bottom 12%
+chart.priceScale('price').applyOptions({{
+  scaleMargins: {{ top: 0.01, bottom: {'0.45' if has_pbv else '0.37'} }},
+  borderColor: C.grid,
+}});
+chart.priceScale('rsi').applyOptions({{
+  scaleMargins: {{ top: {'0.57' if has_pbv else '0.57'}, bottom: {'0.29' if has_pbv else '0.21'} }},
+  borderColor: '#1a2a40',
+}});
+chart.priceScale('vol').applyOptions({{
+  scaleMargins: {{ top: {'0.73' if has_pbv else '0.73'}, bottom: {'0.12' if has_pbv else '0.0'} }},
+  borderColor: '#1a2a40',
+}});
+{'chart.priceScale("pbv").applyOptions({ scaleMargins: { top: 0.88, bottom: 0.0 }, borderColor: "#1a2a40" });' if has_pbv else ''}
+
+// ── Separator lines between panes ─────────────────────────────────────────────
+// Draw visual separators at pane boundaries using fake zero-width series
+function addSeparator(psId, pos) {{
+  const s = chart.addLineSeries({{ priceScaleId: psId, visible: false, priceLineVisible: false, lastValueVisible: false }});
+  chart.priceScale(psId).applyOptions({{ borderVisible: true, borderColor: '#1a2a40' }});
 }}
 
-// ── Load interval data ─────────────────────────────────────────────────────────
-function loadData(interval) {{
-  const d = DATA[interval];
-  if (showCandle) {{ sCand.setData(d.candle); sLine.setData(d.line); }}
-  else            {{ sCand.setData(d.candle); sLine.setData(d.line); }}
+// ── Load data ─────────────────────────────────────────────────────────────────
+function loadData(iv) {{
+  const d = DATA[iv];
   sCand.setData(d.candle);
   sLine.setData(d.line);
   sE25.setData(d.e25); sE75.setData(d.e75); sE200.setData(d.e200);
   sRsi.setData(d.rsi);
   sVol.setData(d.vol);
-  curInterval = interval;
+  curIv = iv;
 }}
 loadData('D');
 
-// ── Crosshair sync ─────────────────────────────────────────────────────────────
-const allCharts = [cP, cR, cV, ...(cB?[cB]:[])];
-const seriesMap = new Map([[cR,sRsi],[cV,sVol]]);
-if (cB) seriesMap.set(cB, sPbv);
-
-cP.subscribeCrosshairMove(p => {{
-  const ts = p.time;
-  [cR,cV,...(cB?[cB]:[])].forEach(c => {{
-    if (ts) c.setCrosshairPosition(0, ts, seriesMap.get(c));
-    else c.clearCrosshairPosition();
-  }});
-  // OHLC legend
+// ── Crosshair OHLC legend ─────────────────────────────────────────────────────
+chart.subscribeCrosshairMove(p => {{
   if (p.seriesData?.has(sCand)) {{
     const d = p.seriesData.get(sCand);
     if (d) {{
@@ -660,76 +654,50 @@ cP.subscribeCrosshairMove(p => {{
     }}
   }}
   // % from MAX/MIN in visible range
+  const ts = p.time;
   if (ts) {{
-    const vr = cP.timeScale().getVisibleRange();
+    const vr = chart.timeScale().getVisibleRange();
     if (vr) {{
-      const vis = DATA[curInterval].candle.filter(x => x.time >= vr.from && x.time <= vr.to);
-      if (vis.length > 0) {{
+      const vis = DATA[curIv].candle.filter(x => x.time >= vr.from && x.time <= vr.to);
+      if (vis.length) {{
         const hi = Math.max(...vis.map(x=>x.high));
         const lo = Math.min(...vis.map(x=>x.low));
         const last = vis[vis.length-1].close;
-        const pm = ((last-hi)/hi*100).toFixed(1);
-        const pl = ((last-lo)/lo*100).toFixed(1);
         document.getElementById('pct').innerHTML =
-          ` <span style="color:#ef5350">▼MAX ${{pm}}%</span>` +
-          ` <span style="color:#22d68a">▲MIN +${{pl}}%</span>`;
+          ` <span style="color:#ef5350">▼MAX ${{((last-hi)/hi*100).toFixed(1)}}%</span>` +
+          ` <span style="color:#22d68a">▲MIN +${{((last-lo)/lo*100).toFixed(1)}}%</span>`;
       }}
     }}
   }}
 }});
 
-// ── Time range sync via logical range (avoids infinite loop) ──────────────────
-let _syncLock = false;
-function makeSyncHandler(src) {{
-  return () => {{
-    if (_syncLock) return;
-    _syncLock = true;
-    try {{
-      const lr = src.timeScale().getVisibleLogicalRange();
-      if (lr) allCharts.filter(c=>c!==src).forEach(c=>c.timeScale().setVisibleLogicalRange(lr));
-    }} finally {{
-      _syncLock = false;
-    }}
-  }};
-}}
-allCharts.forEach(c => c.timeScale().subscribeVisibleLogicalRangeChange(makeSyncHandler(c)));
-
-// ── Period buttons ─────────────────────────────────────────────────────────────
+// ── Controls ──────────────────────────────────────────────────────────────────
 function setRange(days) {{
-  document.querySelectorAll('.pb[onclick*="setRange"]').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.pb[onclick*="setRange"]').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
   curRange = days;
-  applyRange(days);
-}}
-
-function applyRange(days) {{
-  const src = DATA[curInterval].candle;
+  const src = DATA[curIv].candle;
   if (!src.length) return;
-  if (days >= 99999) {{ allCharts.forEach(c=>c.timeScale().fitContent()); return; }}
+  if (days >= 99999) {{ chart.timeScale().fitContent(); return; }}
   const last = src[src.length-1].time;
-  const from = last - days*86400;
-  const r = {{from, to: last + 86400}};
-  // Set all charts directly — more reliable than waiting for sync event
-  _syncLock = true;
-  try {{
-    allCharts.forEach(c => c.timeScale().setVisibleRange(r));
-  }} finally {{ _syncLock = false; }}
+  chart.timeScale().setVisibleRange({{ from: last - days*86400, to: last + 86400*3 }});
 }}
 
-// ── Interval buttons ──────────────────────────────────────────────────────────
-function setInterval(iv) {{
+function setIv(iv) {{
   ['ibD','ibW','ibM'].forEach(id => document.getElementById(id).classList.remove('active'));
   document.getElementById('ib'+iv).classList.add('active');
   loadData(iv);
-  // Re-apply the current period range after switching interval
-  setTimeout(() => setRangeSilent(curRange), 50);
+  setTimeout(() => setRange_silent(curRange), 50);
 }}
 
-function setRangeSilent(days) {{
-  applyRange(days);
+function setRange_silent(days) {{
+  const src = DATA[curIv].candle;
+  if (!src.length) return;
+  if (days >= 99999) {{ chart.timeScale().fitContent(); return; }}
+  const last = src[src.length-1].time;
+  chart.timeScale().setVisibleRange({{ from: last - days*86400, to: last + 86400*3 }});
 }}
 
-// ── Toggle type / log ─────────────────────────────────────────────────────────
 function toggleType() {{
   showCandle = !showCandle;
   sCand.applyOptions({{visible: showCandle}});
@@ -739,33 +707,21 @@ function toggleType() {{
 
 function toggleLog() {{
   logMode = !logMode;
-  cP.applyOptions({{rightPriceScale:{{mode: logMode?1:0}}}});
+  chart.priceScale('price').applyOptions({{mode: logMode ? 1 : 0}});
   document.getElementById('btn_log').classList.toggle('active', logMode);
 }}
 
-function resetZoom() {{ allCharts.forEach(c=>c.timeScale().fitContent()); }}
-
 // ── Resize ────────────────────────────────────────────────────────────────────
-window.addEventListener('resize', () => {{
-  const nw = Math.max(window.innerWidth, 400);
-  allCharts.forEach(c => c.applyOptions({{width:nw}}));
-}});
+window.addEventListener('resize', () => chart.applyOptions({{width: Math.max(window.innerWidth,400)}}));
 
-// ── Init: fit all data then zoom to 1Y from latest ───────────────────────────
-(function initRange() {{
+// ── Init: fit then zoom 1Y ────────────────────────────────────────────────────
+(function init() {{
   const src = DATA['D'].candle;
-  if (!src || !src.length) {{ setTimeout(initRange, 100); return; }}
-  // Fit full history first so panes render with correct dimensions
-  allCharts.forEach(c => {{ try{{ c.timeScale().fitContent(); }}catch(e){{}} }});
-  // Then zoom to 1Y from latest data point after a render tick
+  if (!src || !src.length) {{ setTimeout(init, 100); return; }}
+  chart.timeScale().fitContent();
   setTimeout(() => {{
     const last = src[src.length-1].time;
-    const from = last - 365*86400;
-    const to   = last + 86400*4;
-    _syncLock = true;
-    try {{
-      allCharts.forEach(c => c.timeScale().setVisibleRange({{from, to}}));
-    }} finally {{ _syncLock = false; }}
+    chart.timeScale().setVisibleRange({{ from: last - 365*86400, to: last + 86400*3 }});
   }}, 80);
 }})();
 </script></body></html>"""
@@ -1427,17 +1383,75 @@ def render_vi_scorecard_st(res):
                     f"<br><span style='color:#555;font-size:10px'>{tp}/{tn} criteria passed</span></div>",
                     unsafe_allow_html=True)
 
-    cols=st.columns(5)
-    for i,(sid,lbl) in enumerate([('A','Quality'),('B','Health'),('C','Integrity'),('D','Fraud'),('E','Value')]):
-        if sid in sec_scores:
-            p,n,pct=sec_scores[sid]; bc='#4ecca3' if pct>=70 else ('#f0c040' if pct>=50 else '#ef5350')
-            with cols[i]:
-                st.markdown(f"<div style='text-align:center'>"
-                            f"<span style='color:{SC[sid]};font-size:11px;font-weight:bold'>{lbl}</span>"
-                            f"<br><span style='color:#aaa;font-size:13px'>{pct:.0f}%</span>"
-                            f"<br><div style='background:#0e1628;border-radius:3px;height:6px'>"
-                            f"<div style='width:{pct:.0f}%;height:6px;background:{bc};border-radius:3px'></div>"
-                            f"</div></div>",unsafe_allow_html=True)
+    # ── Radar / Polygon chart ──────────────────────────────────────────────────
+    axes_order = [('A','Quality'),('B','Health'),('C','Integrity'),('D','Fraud'),('E','Value')]
+    radar_vals = [sec_scores.get(sid,(0,0,0))[2] for sid,_ in axes_order]
+    radar_labels = [lbl for _,lbl in axes_order]
+    radar_colors = [SC.get(sid,'#aaa') for sid,_ in axes_order]
+    n_axes = len(axes_order)
+
+    import math
+    # SVG polygon radar
+    cx, cy, r_max = 150, 150, 110
+    def pt(i, val):
+        ang = math.pi/2 + 2*math.pi*i/n_axes
+        rv = val/100 * r_max
+        return cx - rv*math.cos(ang), cy - rv*math.sin(ang)
+
+    # Background rings
+    rings_svg = ""
+    for ring_pct in [25, 50, 75, 100]:
+        ring_pts = " ".join(f"{cx - ring_pct/100*r_max*math.cos(math.pi/2+2*math.pi*i/n_axes):.1f},{cy - ring_pct/100*r_max*math.sin(math.pi/2+2*math.pi*i/n_axes):.1f}" for i in range(n_axes))
+        rings_svg += f"<polygon points='{ring_pts}' fill='none' stroke='#1e3358' stroke-width='1'/>"
+        # Ring labels at right axis
+        lx = cx - ring_pct/100*r_max*math.cos(math.pi/2) + 4
+        ly = cy - ring_pct/100*r_max*math.sin(math.pi/2)
+        rings_svg += f"<text x='{lx:.1f}' y='{ly:.1f}' fill='#2a4060' font-size='8' dominant-baseline='middle'>{ring_pct}%</text>"
+
+    # Axis lines + labels
+    axes_svg = ""
+    for i, (sid, lbl) in enumerate(axes_order):
+        ax, ay = pt(i, 100)
+        axes_svg += f"<line x1='{cx}' y1='{cy}' x2='{ax:.1f}' y2='{ay:.1f}' stroke='#1e3358' stroke-width='1'/>"
+        # Label position (push outward)
+        lx2 = cx + (ax - cx)*1.22
+        ly2 = cy + (ay - cy)*1.22
+        col = radar_colors[i]
+        pct_v = radar_vals[i]
+        axes_svg += (f"<text x='{lx2:.1f}' y='{ly2-7:.1f}' fill='{col}' font-size='10' font-weight='700' text-anchor='middle'>{lbl}</text>"
+                     f"<text x='{lx2:.1f}' y='{ly2+6:.1f}' fill='{col}' font-size='10' text-anchor='middle'>{pct_v:.0f}%</text>")
+
+    # Filled polygon
+    poly_pts = " ".join(f"{pt(i, v)[0]:.1f},{pt(i, v)[1]:.1f}" for i, v in enumerate(radar_vals))
+    # Color based on overall score
+    poly_fill = '#4ecca3' if overall>=72 else ('#f0c040' if overall>=55 else '#ef5350')
+    poly_svg = (f"<polygon points='{poly_pts}' fill='{poly_fill}' fill-opacity='0.18' stroke='{poly_fill}' stroke-width='2' stroke-linejoin='round'/>"
+                + "".join(f"<circle cx='{pt(i,v)[0]:.1f}' cy='{pt(i,v)[1]:.1f}' r='4' fill='{radar_colors[i]}' stroke='#0b1120' stroke-width='1.5'/>" for i,v in enumerate(radar_vals)))
+
+    svg_html = (f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300' width='300' height='300' style='display:block'>"
+                f"<rect width='300' height='300' fill='#0b1120'/>"
+                f"{rings_svg}{axes_svg}{poly_svg}"
+                f"</svg>")
+
+    left_col, right_col = st.columns([1, 2])
+    with left_col:
+        st.markdown(svg_html, unsafe_allow_html=True)
+    with right_col:
+        # Score bars
+        for sid, lbl in axes_order:
+            p,n,pct = sec_scores.get(sid,(0,0,0))
+            bc = '#4ecca3' if pct>=70 else ('#f0c040' if pct>=50 else '#ef5350')
+            col_c = SC.get(sid,'#aaa')
+            st.markdown(
+                f"<div style='margin-bottom:8px'>"
+                f"<div style='display:flex;justify-content:space-between;margin-bottom:3px'>"
+                f"<span style='color:{col_c};font-size:12px;font-weight:700'>{lbl}</span>"
+                f"<span style='color:{bc};font-size:12px;font-weight:700'>{pct:.0f}%</span>"
+                f"</div>"
+                f"<div style='background:#0e1628;border-radius:4px;height:8px'>"
+                f"<div style='width:{pct:.0f}%;height:8px;background:{bc};border-radius:4px'></div>"
+                f"</div></div>",
+                unsafe_allow_html=True)
     st.markdown("---")
     if cycle_flags:
         items="  ·  ".join(f"📉 {f['label']}: recent {f['recent']:.1f}% vs 5Y median {f['hist']:.1f}% ({f['pct']:+.1f}pp)" for f in cycle_flags)
@@ -1940,14 +1954,6 @@ def main():
         st.markdown("<div style='padding:4px 0 12px'>"
                     "<div style='color:#00c8f8;font-size:20px;font-weight:800;letter-spacing:-0.5px'>🏦 SET Analyser</div>"
                     "<div style='color:#2a4060;font-size:11px;margin-top:3px'>Value Investor Edition · Sector-Adjusted</div></div>",unsafe_allow_html=True)
-
-        # ── Date range ──────────────────────────────────────────────────────────
-        st.markdown("<div class='sidebar-label'>📅 Chart Start Date</div>",unsafe_allow_html=True)
-        c1,c2=st.columns([3,2])
-        with c1: start_year=st.selectbox("Year",[str(y) for y in range(2015,2026)],index=6,key="sy",label_visibility="collapsed")
-        with c2: start_month=st.selectbox("Month",[f"{m:02d}" for m in range(1,13)],index=0,key="sm",label_visibility="collapsed")
-        start=f"{start_year}-{start_month}-01"
-        st.markdown("<hr>",unsafe_allow_html=True)
 
         # ── SET100 section ──────────────────────────────────────────────────────
         st.markdown("<div class='sidebar-label'><span style='color:#00c8f8'>●</span> SET100</div>",unsafe_allow_html=True)
