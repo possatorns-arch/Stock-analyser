@@ -730,41 +730,80 @@ def style_ax(ax):
     for sp in ax.spines.values(): sp.set_edgecolor('#2a2a2a')
 
 # ─── Data fetch (cached 6h) ─────────────────────────────────────────────────────
-@st.cache_data(ttl=21600, show_spinner=False)
-def fetch_all(ticker):
+# ── Price cache: short TTL so chart stays current (5 min) ────────────────────
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_price(ticker):
+    """Fetch latest OHLCV — short cache so price is near real-time."""
     import time
-    data = dict(ticker=ticker, info={}, price=pd.DataFrame(), income=pd.DataFrame(),
-                balance=pd.DataFrame(), cashflow=pd.DataFrame(), divs=pd.Series(dtype=float))
     for attempt in range(3):
         try:
-            tk = yf.Ticker(ticker); end = pd.Timestamp.now()
+            tk = yf.Ticker(ticker)
+            # Request end = tomorrow so today's bar is always included
+            end = pd.Timestamp.now(tz='UTC') + pd.Timedelta(days=1)
+            start = end - pd.DateOffset(years=10)
+            px = tk.history(
+                interval='1d', start=start, end=end,
+                auto_adjust=True, actions=True,
+                timeout=20, raise_errors=False
+            )
+            if px is not None and not px.empty:
+                px.index = strip_tz(px.index)
+                return px
+            # Fallback: use period parameter
+            px2 = tk.history(period='10y', interval='1d',
+                             auto_adjust=True, timeout=20)
+            if px2 is not None and not px2.empty:
+                px2.index = strip_tz(px2.index)
+                return px2
+        except Exception:
+            if attempt < 2: time.sleep(1.5 ** attempt)
+    return pd.DataFrame()
+
+# ── Fundamentals cache: long TTL (financials update quarterly) ────────────────
+@st.cache_data(ttl=21600, show_spinner=False)
+def fetch_fundamentals(ticker):
+    """Fetch financials, info, dividends — cached 6h (quarterly data)."""
+    import time
+    data = dict(ticker=ticker, info={}, income=pd.DataFrame(),
+                balance=pd.DataFrame(), cashflow=pd.DataFrame(),
+                divs=pd.Series(dtype=float))
+    for attempt in range(3):
+        try:
+            tk = yf.Ticker(ticker)
             try:
-                info = tk.info or {}; data['info'] = info if isinstance(info, dict) else {}
-            except Exception: pass
-            try:
-                px = tk.history(interval='1d', start=end - pd.DateOffset(years=10), end=end, timeout=30)
-                if px is not None and not px.empty: data['price'] = px
+                info = tk.info or {}
+                data['info'] = info if isinstance(info, dict) else {}
             except Exception: pass
             try:
                 inc = tk.income_stmt
-                if inc is not None and not (hasattr(inc,'empty') and inc.empty): data['income'] = inc
+                if inc is not None and not (hasattr(inc,'empty') and inc.empty):
+                    data['income'] = inc
             except Exception: pass
             try:
                 bal = tk.balance_sheet
-                if bal is not None and not (hasattr(bal,'empty') and bal.empty): data['balance'] = bal
+                if bal is not None and not (hasattr(bal,'empty') and bal.empty):
+                    data['balance'] = bal
             except Exception: pass
             try:
                 cf = tk.cashflow
-                if cf is not None and not (hasattr(cf,'empty') and cf.empty): data['cashflow'] = cf
+                if cf is not None and not (hasattr(cf,'empty') and cf.empty):
+                    data['cashflow'] = cf
             except Exception: pass
             try:
                 dv = tk.dividends
-                if dv is not None and len(dv) > 0: data['divs'] = dv
+                if dv is not None and len(dv) > 0:
+                    data['divs'] = dv
             except Exception: pass
             break
         except Exception:
             if attempt < 2: time.sleep(2 ** attempt)
     return data
+
+def fetch_all(ticker):
+    """Combine short-TTL price with long-TTL fundamentals."""
+    price = fetch_price(ticker)
+    fund  = fetch_fundamentals(ticker)
+    return dict(ticker=ticker, price=price, **fund)
 
 
 # ─── 1. Price chart ──────────────────────────────────────────────────────────────
@@ -2611,13 +2650,24 @@ def main():
         c1,c2=st.columns(2)
         with c1:
             if st.button("Clear all",use_container_width=True):
-                for k in list(st.session_state.keys()):
-                    if any(k.startswith(p) for p in ['set_ms','mai_ms','dr_ms','sb_sec','mai_sec','custom','gl_','scr_','screener']):
-                        del st.session_state[k]
+                # Clear ALL stock selection state — multiselects, sector filters, custom input
+                keys_to_clear = [k for k in st.session_state.keys() if any(
+                    k.startswith(p) for p in [
+                        'set_ms','mai_ms','dr_ms',           # multiselect selections
+                        'sb_sec','mai_sec',                   # sector filter state
+                        'custom_tickers','gl_grp',            # custom input
+                        'scr_filter','screener_results','screener_meta',  # screener
+                    ]) or k.startswith('gl_ms_')              # regional picks
+                ]
+                for k in keys_to_clear:
+                    del st.session_state[k]
                 st.rerun()
         with c2:
-            if st.button("Refresh",use_container_width=True):
-                st.cache_data.clear(); st.rerun()
+            if st.button("Refresh prices",use_container_width=True,
+                          help="Force reload latest prices (prices auto-refresh every 5 min)"):
+                # Only clear price cache — keep fundamentals cache (slow to reload)
+                fetch_price.clear()
+                st.rerun()
 
     TABS=["Screener","Price","Financials","Fundamentals","VI Score","News"]
     tabs=st.tabs(TABS)
