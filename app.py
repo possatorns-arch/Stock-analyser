@@ -803,7 +803,8 @@ def fetch_all(ticker):
     """Combine short-TTL price with long-TTL fundamentals."""
     price = fetch_price(ticker)
     fund  = fetch_fundamentals(ticker)
-    return dict(ticker=ticker, price=price, **fund)
+    fund['price'] = price   # inject fresh price into fundamentals dict
+    return fund
 
 
 # ─── 1. Price chart ──────────────────────────────────────────────────────────────
